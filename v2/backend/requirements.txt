@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+httpx
+PyJWT
+pydantic
+groq
+python-dotenv
+psycopg2-binary
+python-multipart

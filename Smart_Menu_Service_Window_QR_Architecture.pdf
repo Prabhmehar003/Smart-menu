@@ -1,0 +1,160 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R
+   /MediaBox [0 0 595.28 841.89]
+   /Contents 4 0 R
+   /Resources << /Font << /F1 7 0 R /F2 8 0 R >> >>
+>>
+endobj
+4 0 obj
+<< /Length 5668 >>
+stream
+q 0.863 0.863 0.863 rg 45.00 45.00 505.28 1.00 re f Q
+q BT /F1 8 Tf 0.500 0.500 0.500 rg 520.28 32.00 Td (Page 1) Tj ET Q
+q BT /F1 8 Tf 0.500 0.500 0.500 rg 45.00 32.00 Td (CONFIDENTIAL & PROPRIETARY — SMART MENU SYSTEM) Tj ET Q
+q 0.059 0.090 0.165 rg 45.00 712.89 505.28 75.00 re f Q
+q BT /F2 15 Tf 0.839 1.000 0.000 rg 61.00 759.89 Td (SMART MENU SYSTEM ARCHITECTURE) Tj ET Q
+q BT /F1 10 Tf 1.000 1.000 1.000 rg 61.00 739.89 Td (Service Window QR Codes, Table Identification & Fraud Prevention Strategy) Tj ET Q
+q BT /F1 8 Tf 0.580 0.639 0.722 rg 61.00 723.89 Td (Project: smart-menu-main  |  Date: September 2026) Tj ET Q
+q 0.000 0.478 1.000 rg 45.00 685.89 4.00 20.00 re f Q
+q BT /F2 16 Tf 0.059 0.090 0.165 rg 57.00 689.89 Td (1. Executive Summary) Tj ET Q
+q BT /F1 9.5 Tf 0.100 0.100 0.100 rg 45.00 665.89 Td (This architectural report provides a comprehensive evaluation of introducing a Service Window \(Counter /) Tj ET Q
+q BT /F1 9.5 Tf 0.100 0.100 0.100 rg 45.00 651.89 Td (Takeaway / Kiosk\) QR Code alongside traditional Table QR Codes in the Smart Menu system. It outlines) Tj ET Q
+q BT /F1 9.5 Tf 0.100 0.100 0.100 rg 45.00 637.89 Td (technical workflows, table identification strategies, fraud prevention mechanisms, and code modification) Tj ET Q
+q BT /F1 9.5 Tf 0.100 0.100 0.100 rg 45.00 623.89 Td (guidelines tailored for the smart-menu-main codebase.) Tj ET Q
+q 0.000 0.478 1.000 rg 45.00 593.89 4.00 20.00 re f Q
+q BT /F2 16 Tf 0.059 0.090 0.165 rg 57.00 597.89 Td (2. Service Window QR Code Overview) Tj ET Q
+q BT /F1 9.5 Tf 0.100 0.100 0.100 rg 45.00 573.89 Td (A Service Window QR code allows customers entering the venue, waiting in line, or standing at an order) Tj ET Q
+q BT /F1 9.5 Tf 0.100 0.100 0.100 rg 45.00 559.89 Td (counter to immediately scan and view the menu without first sitting down at a specific table.) Tj ET Q
+q 0.000 0.478 1.000 rg 51.00 544.89 4.00 4.00 re f Q
+q BT /F1 9.5 Tf 0.200 0.255 0.333 rg 63.00 541.89 Td (Purpose: Accelerates menu browsing, enables takeaway/counter ordering, and reduces waiter response) Tj ET Q
+q BT /F1 9.5 Tf 0.200 0.255 0.333 rg 63.00 528.39 Td (time.) Tj ET Q
+q 0.000 0.478 1.000 rg 51.00 514.89 4.00 4.00 re f Q
+q BT /F1 9.5 Tf 0.200 0.255 0.333 rg 63.00 511.89 Td (Token Structure: Encodes a JWT payload with table_id = 'COUNTER' or 'SERVICE_WINDOW' \(e.g. {"menu_id":) Tj ET Q
+q BT /F1 9.5 Tf 0.200 0.255 0.333 rg 63.00 498.39 Td ("m1", "table_id": "COUNTER"}\).) Tj ET Q
+q 0.000 0.478 1.000 rg 51.00 484.89 4.00 4.00 re f Q
+q BT /F1 9.5 Tf 0.200 0.255 0.333 rg 63.00 481.89 Td (Verification Flow: Scanned via ScanVerifier.jsx and validated against the backend /api/verify-scan) Tj ET Q
+q BT /F1 9.5 Tf 0.200 0.255 0.333 rg 63.00 468.39 Td (endpoint.) Tj ET Q
+q 0.000 0.478 1.000 rg 45.00 433.89 4.00 20.00 re f Q
+q BT /F2 16 Tf 0.059 0.090 0.165 rg 57.00 437.89 Td (3. Table Identification Mechanisms) Tj ET Q
+q BT /F1 9.5 Tf 0.100 0.100 0.100 rg 45.00 413.89 Td (When an order originates from a Service Window QR code, the system must determine where the food should be) Tj ET Q
+q BT /F1 9.5 Tf 0.100 0.100 0.100 rg 45.00 399.89 Td (served. Three distinct models can be supported:) Tj ET Q
+q 0.973 0.980 0.988 rg 0.863 0.886 0.922 RG 0.80 w 45.00 307.89 505.28 72.00 re B Q
+q 0.231 0.510 0.965 rg 45.00 307.89 4.00 72.00 re f Q
+q BT /F2 10.5 Tf 0.059 0.090 0.165 rg 59.00 363.89 Td (Model A: Counter Pickup / Order Callout \(No Table Assigned\)) Tj ET Q
+q BT /F1 9.5 Tf 0.200 0.255 0.333 rg 59.00 348.89 Td (The order is tagged with table_id = 'COUNTER'. When prepared, the kitchen updates the status to) Tj ET Q
+q BT /F1 9.5 Tf 0.200 0.255 0.333 rg 59.00 334.89 Td ('ready' on the admin portal. Customers collect their food from the window when their Order Number is) Tj ET Q
+q BT /F1 9.5 Tf 0.200 0.255 0.333 rg 59.00 320.89 Td (displayed or called out.) Tj ET Q
+q 0.973 0.980 0.988 rg 0.863 0.886 0.922 RG 0.80 w 45.00 223.89 505.28 72.00 re B Q
+q 0.063 0.725 0.506 rg 45.00 223.89 4.00 72.00 re f Q
+q BT /F2 10.5 Tf 0.059 0.090 0.165 rg 59.00 279.89 Td (Model B: Manual Table Input at Checkout) Tj ET Q
+q BT /F1 9.5 Tf 0.200 0.255 0.333 rg 59.00 264.89 Td (The customer scans the Service Window QR, builds their cart, and selects 'Dine-In' at checkout. A) Tj ET Q
+q BT /F1 9.5 Tf 0.200 0.255 0.333 rg 59.00 250.89 Td (modal prompts them to enter their Table Number \(e.g., Table 1–20\). The order payload posts) Tj ET Q
+q BT /F1 9.5 Tf 0.200 0.255 0.333 rg 59.00 236.89 Td (customer_selected_table_id to /api/order.) Tj ET Q
+q 0.973 0.980 0.988 rg 0.863 0.886 0.922 RG 0.80 w 45.00 139.89 505.28 72.00 re B Q
+q 0.545 0.361 0.965 rg 45.00 139.89 4.00 72.00 re f Q
+q BT /F2 10.5 Tf 0.059 0.090 0.165 rg 59.00 195.89 Td (Model C: Two-Step Dynamic Table Pairing \(Recommended\)) Tj ET Q
+q BT /F1 9.5 Tf 0.200 0.255 0.333 rg 59.00 180.89 Td (The customer scans the Service Window QR while standing in line to build a cart. Once seated, they) Tj ET Q
+q BT /F1 9.5 Tf 0.200 0.255 0.333 rg 59.00 166.89 Td (tap 'Pair Table' inside the web app and scan the physical Table QR code. The session token upgrades) Tj ET Q
+q BT /F1 9.5 Tf 0.200 0.255 0.333 rg 59.00 152.89 Td (from 'COUNTER' to 'TABLE_5'.) Tj ET Q
+q 0.000 0.478 1.000 rg 45.00 115.89 4.00 20.00 re f Q
+q BT /F2 16 Tf 0.059 0.090 0.165 rg 57.00 119.89 Td (4. Security & Anti-Abuse Strategy) Tj ET Q
+q BT /F1 9.5 Tf 0.100 0.100 0.100 rg 45.00 95.89 Td (Allowing customers to order without being pre-locked to a table introduces potential fraud risks \(e.g.,) Tj ET Q
+q BT /F1 9.5 Tf 0.100 0.100 0.100 rg 45.00 81.89 Td (placing fake orders to random tables\). Below is the recommended multi-layered security strategy:) Tj ET Q
+endstream
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R
+   /MediaBox [0 0 595.28 841.89]
+   /Contents 6 0 R
+   /Resources << /Font << /F1 7 0 R /F2 8 0 R >> >>
+>>
+endobj
+6 0 obj
+<< /Length 4996 >>
+stream
+q 0.784 0.784 0.784 rg 45.00 806.89 505.28 1.00 re f Q
+q BT /F1 8 Tf 0.400 0.400 0.400 rg 45.00 811.89 Td (Smart Menu Architecture | Service Window QR & Table Pairing) Tj ET Q
+q 0.863 0.863 0.863 rg 45.00 45.00 505.28 1.00 re f Q
+q BT /F1 8 Tf 0.500 0.500 0.500 rg 520.28 32.00 Td (Page 2) Tj ET Q
+q BT /F1 8 Tf 0.500 0.500 0.500 rg 45.00 32.00 Td (CONFIDENTIAL & PROPRIETARY — SMART MENU SYSTEM) Tj ET Q
+q 0.000 0.478 1.000 rg 51.00 790.89 4.00 4.00 re f Q
+q BT /F1 9.5 Tf 0.200 0.255 0.333 rg 63.00 787.89 Td (1. Mandatory Pre-Payment: Require digital pre-payment \(Stripe/UPI/Apple Pay\) for counter or manual) Tj ET Q
+q BT /F1 9.5 Tf 0.200 0.255 0.333 rg 63.00 774.39 Td (table orders. Once paid, kitchen waste risk is zero regardless of table placement.) Tj ET Q
+q 0.000 0.478 1.000 rg 51.00 760.89 4.00 4.00 re f Q
+q BT /F1 9.5 Tf 0.200 0.255 0.333 rg 63.00 757.89 Td (2. JWT Signed Tokens: Table QR codes remain tamper-proof. Manual override requires cashier approval or) Tj ET Q
+q BT /F1 9.5 Tf 0.200 0.255 0.333 rg 63.00 744.39 Td (valid JWT scanning.) Tj ET Q
+q 0.000 0.478 1.000 rg 51.00 730.89 4.00 4.00 re f Q
+q BT /F1 9.5 Tf 0.200 0.255 0.333 rg 63.00 727.89 Td (3. Geofence Proximity Check: Leverages the existing 200m GPS verification in /api/verify-scan to block) Tj ET Q
+q BT /F1 9.5 Tf 0.200 0.255 0.333 rg 63.00 714.39 Td (remote off-site spam orders.) Tj ET Q
+q 0.000 0.478 1.000 rg 51.00 700.89 4.00 4.00 re f Q
+q BT /F1 9.5 Tf 0.200 0.255 0.333 rg 63.00 697.89 Td (4. Staff Order Approval: Unpaid cash orders remain in 'pending_approval' until floor staff verify the) Tj ET Q
+q BT /F1 9.5 Tf 0.200 0.255 0.333 rg 63.00 684.39 Td (table before kitchen preparation.) Tj ET Q
+q 0.000 0.478 1.000 rg 45.00 649.89 4.00 20.00 re f Q
+q BT /F2 16 Tf 0.059 0.090 0.165 rg 57.00 653.89 Td (5. Model Comparison Matrix) Tj ET Q
+q 0.945 0.961 0.976 rg 0.796 0.835 0.882 RG 1.00 w 45.00 609.89 505.28 20.00 re B Q
+q BT /F2 9 Tf 0.059 0.090 0.165 rg 51.00 615.89 Td (Model) Tj ET Q
+q BT /F2 9 Tf 0.059 0.090 0.165 rg 166.00 615.89 Td (Primary Use Case) Tj ET Q
+q BT /F2 9 Tf 0.059 0.090 0.165 rg 261.00 615.89 Td (UX Effort) Tj ET Q
+q BT /F2 9 Tf 0.059 0.090 0.165 rg 321.00 615.89 Td (Fraud Risk) Tj ET Q
+q BT /F2 9 Tf 0.059 0.090 0.165 rg 381.00 615.89 Td (Recommended Safeguard) Tj ET Q
+q 1.000 1.000 1.000 rg 0.886 0.910 0.941 RG 1.00 w 45.00 589.89 505.28 20.00 re B Q
+q BT /F2 8.5 Tf 0.200 0.255 0.333 rg 51.00 595.89 Td (Model A: Counter Callout) Tj ET Q
+q BT /F1 8.5 Tf 0.200 0.255 0.333 rg 166.00 595.89 Td (Takeaway / Fast Food) Tj ET Q
+q BT /F1 8.5 Tf 0.200 0.255 0.333 rg 261.00 595.89 Td (Minimal) Tj ET Q
+q BT /F1 8.5 Tf 0.200 0.255 0.333 rg 321.00 595.89 Td (Very Low) Tj ET Q
+q BT /F1 8.5 Tf 0.200 0.255 0.333 rg 381.00 595.89 Td (Order Callout Screen) Tj ET Q
+q 0.973 0.980 0.988 rg 0.886 0.910 0.941 RG 1.00 w 45.00 569.89 505.28 20.00 re B Q
+q BT /F2 8.5 Tf 0.200 0.255 0.333 rg 51.00 575.89 Td (Model B: Manual Table Input) Tj ET Q
+q BT /F1 8.5 Tf 0.200 0.255 0.333 rg 166.00 575.89 Td (Casual Dining) Tj ET Q
+q BT /F1 8.5 Tf 0.200 0.255 0.333 rg 261.00 575.89 Td (Low) Tj ET Q
+q BT /F1 8.5 Tf 0.200 0.255 0.333 rg 321.00 575.89 Td (Medium) Tj ET Q
+q BT /F1 8.5 Tf 0.200 0.255 0.333 rg 381.00 575.89 Td (Mandatory Digital Payment) Tj ET Q
+q 1.000 1.000 1.000 rg 0.886 0.910 0.941 RG 1.00 w 45.00 549.89 505.28 20.00 re B Q
+q BT /F2 8.5 Tf 0.200 0.255 0.333 rg 51.00 555.89 Td (Model C: Dynamic Pairing) Tj ET Q
+q BT /F1 8.5 Tf 0.200 0.255 0.333 rg 166.00 555.89 Td (Full Service Dining) Tj ET Q
+q BT /F1 8.5 Tf 0.200 0.255 0.333 rg 261.00 555.89 Td (Medium) Tj ET Q
+q BT /F1 8.5 Tf 0.200 0.255 0.333 rg 321.00 555.89 Td (Zero) Tj ET Q
+q BT /F1 8.5 Tf 0.200 0.255 0.333 rg 381.00 555.89 Td (JWT Table Rescan / Pair) Tj ET Q
+q 0.000 0.478 1.000 rg 45.00 525.89 4.00 20.00 re f Q
+q BT /F2 16 Tf 0.059 0.090 0.165 rg 57.00 529.89 Td (6. Recommended Code Modifications) Tj ET Q
+q BT /F1 9.5 Tf 0.100 0.100 0.100 rg 45.00 505.89 Td (To implement the Service Window QR code feature in smart-menu-main, apply the following updates:) Tj ET Q
+q 0.000 0.478 1.000 rg 51.00 490.89 4.00 4.00 re f Q
+q BT /F1 9.5 Tf 0.200 0.255 0.333 rg 63.00 487.89 Td (backend/main.py: Add endpoint /api/tables/counter-token to generate a perpetual or reset-capable JWT) Tj ET Q
+q BT /F1 9.5 Tf 0.200 0.255 0.333 rg 63.00 474.39 Td (token for the service window with table_id = 'COUNTER'.) Tj ET Q
+q 0.000 0.478 1.000 rg 51.00 460.89 4.00 4.00 re f Q
+q BT /F1 9.5 Tf 0.200 0.255 0.333 rg 63.00 457.89 Td (frontend/.../CustomerMenuApp.jsx: Add state for isCounterSession and a checkout table selector modal) Tj ET Q
+q BT /F1 9.5 Tf 0.200 0.255 0.333 rg 63.00 444.39 Td (if table_id === 'COUNTER'.) Tj ET Q
+q 0.000 0.478 1.000 rg 51.00 430.89 4.00 4.00 re f Q
+q BT /F1 9.5 Tf 0.200 0.255 0.333 rg 63.00 427.89 Td (frontend/.../TablesPage.jsx: Add a 'Download Service Window QR' button alongside table QRs in the) Tj ET Q
+q BT /F1 9.5 Tf 0.200 0.255 0.333 rg 63.00 414.39 Td (admin portal.) Tj ET Q
+endstream
+endobj
+7 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+8 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+xref
+0 9
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000121 00000 n 
+0000000272 00000 n 
+0000005992 00000 n 
+0000006143 00000 n 
+0000011191 00000 n 
+0000011261 00000 n 
+trailer
+<< /Size 9 /Root 1 0 R >>
+startxref
+11336
+%%EOF

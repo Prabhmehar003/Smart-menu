@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+@theme {
+  /* Core Palette */
+  --color-acid-bg: #050508;
+  --color-acid-surface: #0a0a0f;
+  --color-amber-gold: #f59e0b;
+
+  /* Typography */
+  --font-display: 'Clash Display', sans-serif;
+  --font-sans: 'Plus Jakarta Sans', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  html.lenis,
+  html.lenis body {
+    height: auto;
+  }
+
+  html.lenis {
+    scroll-behavior: auto !important;
+  }
+
+  body {
+    background-color: #050508;
+    color: #ffffff;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Hide Drei HTML Occlusion Stencil Mask Artifacts */
+  svg[class*="drei"],
+  [class*="drei"] svg,
+  .drei-html-mask,
+  svg:has(circle[fill="white"]) {
+    display: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
+
+  /* Custom Professional Amber Scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #050508;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(245, 158, 11, 0.2);
+    border-radius: 10px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(245, 158, 11, 0.5);
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
