@@ -29,9 +29,19 @@ client = Groq(api_key=_groq_key) if _groq_key else None
 UNSPLASH_ACCESS_KEY = os.environ.get("UNSPLASH_ACCESS_KEY")
 
 app = FastAPI()
+
+allowed_origins = [
+    "https://smart-menu-sigma-beige.vercel.app",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*", "https://5cf2-2409-40d1-203c-ba15-4c3b-4ac3-c622-db9e.ngrok-free.app"],
+    allow_origins=allowed_origins,
+    allow_origin_regex=r"https://.*\.vercel\.app",
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
