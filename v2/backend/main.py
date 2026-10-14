@@ -71,7 +71,10 @@ AVATARS_DIR = UPLOADS_DIR / "avatars"
 AVATARS_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/static/avatars", StaticFiles(directory=str(AVATARS_DIR)), name="avatars")
 
-init_db()
+try:
+    init_db()
+except Exception as e:
+    print(f"Warning: could not initialize database on startup: {e}")
 
 # Sessions: in-memory, short-lived (3 hr TTL) backed by PostgreSQL dining_sessions.
 ACTIVE_SESSIONS: dict = {}
@@ -2489,5 +2492,10 @@ async def update_settings(update: SettingsUpdate, request: Request):
 #         for key, value in float_fields.items():
 #             if value is not None:
 #                 _upsert_setting(cur, key, str(value))
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
 
 #     return await get_settings()

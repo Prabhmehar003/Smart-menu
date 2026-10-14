@@ -19,7 +19,8 @@ dotenv.load_dotenv()
 # Cryptographic Secret (In production, use environment variables)
 SECRET_KEY = "acid-maximalism-secure-key-do-not-share"
 
-client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+_groq_key = os.environ.get("GROQ_API_KEY")
+client = Groq(api_key=_groq_key) if _groq_key else None
 
 # NEW: Unsplash is the primary ("scrape") image source — free tier, real API,
 # stable, and actually licensed for use (unlike raw Bing/DuckDuckGo scraping,
@@ -302,3 +303,9 @@ async def place_order(order: OrderRequest, request: Request):
     }
     ORDERS_DB.append(order_record)
     return {"success": True, "order_id": order_id, "table_id": session["table_id"]}
+
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
