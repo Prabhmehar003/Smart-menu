@@ -34,7 +34,8 @@ SECRET_KEY = os.environ.get(
     "ACID_SECRET_KEY", "acid-maximalism-secure-key-do-not-share"
 )
 
-client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+_groq_key = os.environ.get("GROQ_API_KEY")
+client = Groq(api_key=_groq_key) if _groq_key else None
 UNSPLASH_ACCESS_KEY = os.environ.get("UNSPLASH_ACCESS_KEY")
 
 # ---------------------------------------------------------------------------
@@ -644,6 +645,8 @@ async def process_menu(
     """
 
     try:
+        if not client:
+            raise HTTPException(status_code=500, detail="GROQ_API_KEY is not configured on the server")
         model_name = os.environ.get("GROQ_MODEL", "qwen/qwen3.8-27b")
         max_tokens_val = int(os.environ.get("GROQ_MAX_TOKENS", "900"))
 

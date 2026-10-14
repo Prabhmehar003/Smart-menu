@@ -49,6 +49,41 @@ def init_db() -> None:
         with conn.cursor() as cur:
             cur.execute("""
                 -- ==========================================
+                -- FIREBASE AUTH / USER TABLES (Created first for Foreign Keys)
+                -- ==========================================
+                CREATE TABLE IF NOT EXISTS users (
+                    uid          TEXT PRIMARY KEY,
+                    email        TEXT UNIQUE NOT NULL,
+                    name         TEXT,
+                    role         TEXT NOT NULL DEFAULT 'client',
+                    avatar_url   TEXT,
+                    phone_number TEXT,
+                    address_line TEXT,
+                    city         TEXT,
+                    region       TEXT,
+                    country      TEXT,
+                    postal_code  TEXT,
+                    device_type  TEXT,
+                    device_name  TEXT,
+                    created_at   TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at   TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE TABLE IF NOT EXISTS provider_profiles (
+                    uid               TEXT PRIMARY KEY REFERENCES users(uid) ON DELETE CASCADE,
+                    business_name     TEXT,
+                    bio               TEXT,
+                    years_experience  INTEGER,
+                    hourly_rate       DOUBLE PRECISION,
+                    license_number    TEXT,
+                    service_radius_km DOUBLE PRECISION,
+                    updated_at        TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+                CREATE INDEX IF NOT EXISTS idx_users_role  ON users(role);
+
+                -- ==========================================
                 -- PROJECT 1: SMART MENU TABLES
                 -- ==========================================
                 CREATE TABLE IF NOT EXISTS menus (
@@ -134,41 +169,6 @@ def init_db() -> None:
                     config_key   TEXT PRIMARY KEY,
                     config_value TEXT
                 );
-
-                -- ==========================================
-                -- FIREBASE AUTH / USER TABLES
-                -- ==========================================
-                CREATE TABLE IF NOT EXISTS users (
-                    uid          TEXT PRIMARY KEY,
-                    email        TEXT UNIQUE NOT NULL,
-                    name         TEXT,
-                    role         TEXT NOT NULL DEFAULT 'client',
-                    avatar_url   TEXT,
-                    phone_number TEXT,
-                    address_line TEXT,
-                    city         TEXT,
-                    region       TEXT,
-                    country      TEXT,
-                    postal_code  TEXT,
-                    device_type  TEXT,
-                    device_name  TEXT,
-                    created_at   TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    updated_at   TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-                );
-
-                CREATE TABLE IF NOT EXISTS provider_profiles (
-                    uid               TEXT PRIMARY KEY REFERENCES users(uid) ON DELETE CASCADE,
-                    business_name     TEXT,
-                    bio               TEXT,
-                    years_experience  INTEGER,
-                    hourly_rate       DOUBLE PRECISION,
-                    license_number    TEXT,
-                    service_radius_km DOUBLE PRECISION,
-                    updated_at        TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-                );
-
-                CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-                CREATE INDEX IF NOT EXISTS idx_users_role  ON users(role);
             """)
         conn.commit()
     finally:

@@ -8,3 +8,5 @@ python-dotenv
 psycopg2-binary
 python-multipart
 firebase-admin
+cryptography
+gunicorn
