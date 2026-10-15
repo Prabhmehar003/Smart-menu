@@ -3,9 +3,15 @@
 // endpoints through this module.  Throws on non-2xx so callers can catch
 // and surface a real error state instead of silently swallowing failures.
 
-const BASE = import.meta.env.VITE_API_BASE_URL
-  ? `${import.meta.env.VITE_API_BASE_URL}/api`
-  : "/api";
+const defaultBaseUrl =
+  typeof window !== "undefined" &&
+  window.location.hostname !== "localhost" &&
+  window.location.hostname !== "127.0.0.1"
+    ? "https://smart-menu-yf6f.onrender.com"
+    : "";
+
+const API_ROOT = import.meta.env.VITE_API_BASE_URL || defaultBaseUrl;
+const BASE = API_ROOT ? `${API_ROOT}/api` : "/api";
 
 const inflightRequests = new Map();
 const recentGetCache = new Map();

@@ -12,7 +12,13 @@ import {
 import { auth } from '../../lib/firebase';
 import AuthLayout, { Field } from '../../layouts/AuthLayout';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+const API_BASE =
+  import.meta.env.VITE_API_BASE_URL ||
+  (typeof window !== "undefined" &&
+  window.location.hostname !== "localhost" &&
+  window.location.hostname !== "127.0.0.1"
+    ? "https://smart-menu-yf6f.onrender.com"
+    : "");
 const googleProvider = new GoogleAuthProvider();
 
 export default function Login() {

@@ -33,12 +33,12 @@ if (missingKeys.length > 0) {
 }
 
 const safeConfig = {
-  apiKey: firebaseConfig.apiKey || 'AIzaSyDemoPlaceholderKeyForInitialization',
-  authDomain: firebaseConfig.authDomain || 'smart-menu-demo.firebaseapp.com',
-  projectId: firebaseConfig.projectId || 'smart-menu-demo',
-  storageBucket: firebaseConfig.storageBucket || 'smart-menu-demo.appspot.com',
-  messagingSenderId: firebaseConfig.messagingSenderId || '1234567890',
-  appId: firebaseConfig.appId || '1:1234567890:web:abcdef123456',
+  apiKey: firebaseConfig.apiKey || 'AIzaSyDpjOZ_o7viN21m31lQxQxWsijaiaOiRUU',
+  authDomain: firebaseConfig.authDomain || 'smart-menu5588.firebaseapp.com',
+  projectId: firebaseConfig.projectId || 'smart-menu5588',
+  storageBucket: firebaseConfig.storageBucket || 'smart-menu5588.firebasestorage.app',
+  messagingSenderId: firebaseConfig.messagingSenderId || '666697606348',
+  appId: firebaseConfig.appId || '1:666697606348:web:67bfff84c92767bb5a4e69',
 };
 
 // initializeApp must run FIRST — everything below depends on this
