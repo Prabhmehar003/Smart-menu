@@ -259,6 +259,37 @@ export default function PricingSection({ onOpenDemo }) {
   const headerRef = useRef(null);
   const cardsWrapperRef = useRef(null);
   const cardRefs = useRef([]);
+  const videoRef = useRef(null);
+  const [videoLoaded, setVideoLoaded] = useState(false);
+
+  // Play/pause and lazy load video via IntersectionObserver
+  useEffect(() => {
+    const video = videoRef.current;
+    const section = sectionRef.current;
+    if (!video || !section) return;
+
+    video.muted = true;
+    video.defaultMuted = true;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const playPromise = video.play();
+            if (playPromise !== undefined) {
+              playPromise.catch(() => {});
+            }
+          } else {
+            video.pause();
+          }
+        });
+      },
+      { rootMargin: '300px 0px', threshold: 0.01 }
+    );
+
+    observer.observe(section);
+    return () => observer.disconnect();
+  }, []);
 
   const handleNavigate = (planKey) => {
     navigate(`/signup?plan=${planKey}`);
@@ -410,23 +441,14 @@ export default function PricingSection({ onOpenDemo }) {
       {/* 4K CINEMATIC RESTAURANT VIDEO BACKGROUND */}
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
         <video
-          ref={(el) => {
-            if (el) {
-              el.muted = true;
-              el.defaultMuted = true;
-              el.play().catch(() => {});
-            }
-          }}
-          autoPlay
+          ref={videoRef}
           loop
           muted
           playsInline
-          preload="auto"
-          onLoadedData={(e) => {
-            e.currentTarget.muted = true;
-            e.currentTarget.play().catch(() => {});
-          }}
-          className="w-full h-full object-cover object-center filter saturate-[1.1] contrast-[1.05]"
+          preload="none"
+          onCanPlay={() => setVideoLoaded(true)}
+          className="w-full h-full object-cover object-center filter saturate-[1.1] contrast-[1.05] transition-opacity duration-700 ease-out"
+          style={{ opacity: videoLoaded ? 1 : 0 }}
           src="/videos/14768199_2160_3840_25fps.mp4"
         />
 

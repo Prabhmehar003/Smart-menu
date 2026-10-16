@@ -1717,24 +1717,13 @@ function TablesPage({ t, mode, settings = {} }) {
 
                       {/* Video */}
                       <video
-                        ref={(el) => {
-                          previewVideoRef.current = el;
-                          if (el) {
-                            el.muted = true;
-                            el.defaultMuted = true;
-                            el.play().catch(() => {});
-                          }
-                        }}
+                        ref={previewVideoRef}
                         src="/videos/PixVerse_no_watermark.mp4"
                         autoPlay
                         loop
                         muted
                         playsInline
                         preload="auto"
-                        onLoadedData={(e) => {
-                          e.currentTarget.muted = true;
-                          e.currentTarget.play().catch(() => {});
-                        }}
                         className="w-full h-full object-contain pointer-events-none"
                       />
                     </div>

@@ -209,24 +209,13 @@ function CustomersPage({ t, mode, settings = {} }) {
       {/* Full-screen Ambient Background Video */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
         <video
-          ref={(el) => {
-            bgVideoRef.current = el;
-            if (el) {
-              el.muted = true;
-              el.defaultMuted = true;
-              el.play().catch(() => {});
-            }
-          }}
+          ref={bgVideoRef}
           src="/videos/PixVerse_full_animation_removed.mp4"
           autoPlay
           loop
           muted
           playsInline
           preload="auto"
-          onLoadedData={(e) => {
-            e.currentTarget.muted = true;
-            e.currentTarget.play().catch(() => {});
-          }}
           className="w-full h-full object-cover"
         />
         {/* Dark vignette overlay for crisp legibility and high contrast */}

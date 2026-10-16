@@ -184,13 +184,35 @@ export default function ProblemSection() {
   const cardRefs = useRef([]);
   const [hoveredIndex, setHoveredIndex] = useState(null);
 
-  // Play video reliably on mount
+  const [videoLoaded, setVideoLoaded] = useState(false);
+
+  // Play/pause and lazy load video via IntersectionObserver
   useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.play().catch((err) => {
-        console.warn('ProblemSection background video autoplay prevented:', err);
-      });
-    }
+    const video = videoRef.current;
+    const section = sectionRef.current;
+    if (!video || !section) return;
+
+    video.muted = true;
+    video.defaultMuted = true;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const playPromise = video.play();
+            if (playPromise !== undefined) {
+              playPromise.catch(() => {});
+            }
+          } else {
+            video.pause();
+          }
+        });
+      },
+      { rootMargin: '300px 0px', threshold: 0.01 }
+    );
+
+    observer.observe(section);
+    return () => observer.disconnect();
   }, []);
 
   // GSAP Pinned ScrollTrigger Scroll Reveal
@@ -305,26 +327,16 @@ export default function ProblemSection() {
           Full-width, autoplay, muted, loop, object-cover
          ======================================================= */}
       <video
-        ref={(el) => {
-          videoRef.current = el;
-          if (el) {
-            el.muted = true;
-            el.defaultMuted = true;
-            el.play().catch(() => {});
-          }
-        }}
+        ref={videoRef}
         src="/videos/9698565-hd_1920_1080_24fps.mp4"
-        autoPlay
         loop
         muted
         playsInline
-        preload="auto"
-        onLoadedData={(e) => {
-          e.currentTarget.muted = true;
-          e.currentTarget.play().catch(() => {});
-        }}
-        className="absolute inset-0 w-full h-full object-cover object-center pointer-events-none z-0"
+        preload="none"
+        onCanPlay={() => setVideoLoaded(true)}
+        className="absolute inset-0 w-full h-full object-cover object-center pointer-events-none z-0 transition-opacity duration-700 ease-out"
         style={{
+          opacity: videoLoaded ? 1 : 0,
           filter: 'contrast(1.05) saturate(1.04) brightness(0.96)',
         }}
       />

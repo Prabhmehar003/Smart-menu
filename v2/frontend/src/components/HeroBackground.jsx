@@ -1,13 +1,23 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 
 export default function HeroBackground({ scrollProgress = 0 }) {
   const videoRef = useRef(null);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.play().catch((err) => {
-        console.warn('Hero background video playback prevented:', err);
-      });
+    const video = videoRef.current;
+    if (!video) return;
+
+    video.muted = true;
+    video.defaultMuted = true;
+
+    const playPromise = video.play();
+    if (playPromise !== undefined) {
+      playPromise
+        .then(() => setIsLoaded(true))
+        .catch((err) => {
+          console.warn('Hero background video playback prevented:', err);
+        });
     }
   }, []);
 
@@ -16,30 +26,23 @@ export default function HeroBackground({ scrollProgress = 0 }) {
   const videoTransform = `scale(${1 + scrollProgress * 0.05})`;
 
   return (
-    <div className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none z-0">
+    <div className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none z-0 bg-[#050508]">
       {/* Layer 1: Restaurant Video Asset - Full Bleed Edge-to-Edge */}
       <video
-        ref={(el) => {
-          videoRef.current = el;
-          if (el) {
-            el.muted = true;
-            el.defaultMuted = true;
-            el.play().catch(() => {});
-          }
-        }}
+        ref={videoRef}
         src="/videos/restaurant-bg.mp4"
         autoPlay
         loop
         muted
         playsInline
         preload="auto"
-        onLoadedData={(e) => {
-          e.currentTarget.muted = true;
-          e.currentTarget.play().catch(() => {});
+        onCanPlay={() => {
+          setIsLoaded(true);
+          videoRef.current?.play().catch(() => {});
         }}
-        className="absolute inset-0 w-full h-full object-cover min-w-full min-h-full transition-transform duration-75 ease-out"
+        className="absolute inset-0 w-full h-full object-cover min-w-full min-h-full transition-all duration-700 ease-out"
         style={{
-          opacity: videoOpacity,
+          opacity: isLoaded ? videoOpacity : 0,
           transform: videoTransform,
           filter: 'contrast(1.05) saturate(1.0)',
         }}

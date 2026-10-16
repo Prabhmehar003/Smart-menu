@@ -289,24 +289,13 @@ function DashboardPage({ t, mode, onNavigate, settings = {} }) {
       {/* Path: /videos/smart_menu_watermark_removed.mp4                            */}
       {/* ========================================================================= */}
       <video
-        ref={(el) => {
-          videoRef.current = el;
-          if (el) {
-            el.muted = true;
-            el.defaultMuted = true;
-            el.play().catch(() => {});
-          }
-        }}
+        ref={videoRef}
         src="/videos/smart_menu_watermark_removed.mp4"
         autoPlay
         loop
         muted
         playsInline
         preload="auto"
-        onLoadedData={(e) => {
-          e.currentTarget.muted = true;
-          e.currentTarget.play().catch(() => {});
-        }}
         className="fixed inset-0 w-full h-full object-cover object-center pointer-events-none z-0"
         style={{
           filter: 'contrast(1.05) saturate(1.04) brightness(0.96)',

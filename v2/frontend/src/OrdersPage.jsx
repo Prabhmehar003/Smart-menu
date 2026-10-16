@@ -338,14 +338,7 @@ function OrdersPage({ t, mode, settings = {}, initialSelectedOrderId, onClearSel
       {/* Full-screen Ambient Background Video */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
         <video
-          ref={(el) => {
-            bgVideoRef.current = el;
-            if (el) {
-              el.muted = true;
-              el.defaultMuted = true;
-              el.play().catch(() => {});
-            }
-          }}
+          ref={bgVideoRef}
           src="/videos/PixVerse_full_animation_removed.mp4"
           autoPlay
           loop

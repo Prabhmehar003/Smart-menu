@@ -187,6 +187,36 @@ export default function HowItWorks() {
   const stepRefs = useRef([]);
   const videoRef = useRef(null);
   const [hoveredIndex, setHoveredIndex] = useState(null);
+  const [videoLoaded, setVideoLoaded] = useState(false);
+
+  // Play/pause and lazy load video via IntersectionObserver
+  useEffect(() => {
+    const video = videoRef.current;
+    const section = sectionRef.current;
+    if (!video || !section) return;
+
+    video.muted = true;
+    video.defaultMuted = true;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const playPromise = video.play();
+            if (playPromise !== undefined) {
+              playPromise.catch(() => {});
+            }
+          } else {
+            video.pause();
+          }
+        });
+      },
+      { rootMargin: '300px 0px', threshold: 0.01 }
+    );
+
+    observer.observe(section);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const ctx = gsap.context(() => {
@@ -275,25 +305,15 @@ export default function HowItWorks() {
       {/* 1. 4K Cinematic Background Video Layer */}
       <div className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none z-0">
         <video
-          ref={(el) => {
-            videoRef.current = el;
-            if (el) {
-              el.muted = true;
-              el.defaultMuted = true;
-              el.play().catch(() => {});
-            }
-          }}
+          ref={videoRef}
           src="/videos/3626148-uhd_4096_2160_25fps.mp4"
-          autoPlay
           muted
           loop
           playsInline
-          preload="auto"
-          onLoadedData={(e) => {
-            e.currentTarget.muted = true;
-            e.currentTarget.play().catch(() => {});
-          }}
-          className="w-full h-full object-cover object-center scale-105 opacity-80 will-change-transform"
+          preload="none"
+          onCanPlay={() => setVideoLoaded(true)}
+          className="w-full h-full object-cover object-center scale-105 will-change-transform transition-opacity duration-700 ease-out"
+          style={{ opacity: videoLoaded ? 0.8 : 0 }}
         >
           <source src="/videos/3626148-uhd_4096_2160_25fps.mp4" type="video/mp4" />
         </video>
