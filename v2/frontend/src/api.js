@@ -43,9 +43,11 @@ async function request(path, opts = {}) {
 
   const fetchPromise = (async () => {
     try {
+      const token = typeof localStorage !== "undefined" ? localStorage.getItem("acid_token") : null;
+      const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
       const res = await fetch(url, {
         credentials: "include",
-        headers: { "Content-Type": "application/json", ...opts.headers },
+        headers: { "Content-Type": "application/json", ...authHeaders, ...opts.headers },
         ...opts,
       });
 

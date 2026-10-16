@@ -207,16 +207,24 @@ export default function SignUp() {
         }),
       });
 
+      const sessionData = await sessionRes.json().catch(() => ({}));
+
       if (!sessionRes.ok) {
-        const body = await sessionRes.json().catch(() => ({}));
-        throw new Error(body.message || body.detail || 'Could not create account.');
+        throw new Error(sessionData.message || sessionData.detail || 'Could not create account.');
+      }
+
+      if (sessionData.token) {
+        localStorage.setItem('acid_token', sessionData.token);
       }
 
       // 3. Save all Account Info + Restaurant Info + Billing + Plan in database
       const profileRes = await fetch(`${API_BASE}/api/auth/complete-profile`, {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(sessionData?.token ? { Authorization: `Bearer ${sessionData.token}` } : {}),
+        },
         body: JSON.stringify({
           name: name.trim(),
           phoneNumber: phoneNumber.trim(),
@@ -263,6 +271,8 @@ export default function SignUp() {
         setError('This email address is already registered. Please go to the sign-in page to log in.');
       } else if (err.code === 'auth/weak-password') {
         setError('Password is too weak. Please use at least 6 characters.');
+      } else if (err.message === 'Load failed' || err.message === 'Failed to fetch') {
+        setError('Connection timed out. The backend server is waking up — please click again in a few moments.');
       } else {
         setError(err.message || 'Something went wrong during account creation.');
       }

@@ -325,7 +325,7 @@ async def verify_firebase_token(id_token: str) -> dict:
     if not id_token:
         raise HTTPException(status_code=400, detail="Missing Firebase idToken.")
 
-    api_key = os.environ.get("VITE_FIREBASE_API_KEY")
+    api_key = os.environ.get("VITE_FIREBASE_API_KEY") or os.environ.get("FIREBASE_API_KEY") or "AIzaSyDpjOZ_o7viN21m31lQxQxWsijaiaOiRUU"
     project_id = os.environ.get("VITE_FIREBASE_PROJECT_ID", "smart-menu5588")
 
     # 1. Google Firebase Identity Toolkit REST API (works directly with Firebase Web API key)
@@ -491,22 +491,26 @@ async def create_auth_session(body: AuthSessionRequest, response: Response):
         algorithm="HS256",
     )
 
-    # Set HTTP-only cookies
+    # Set HTTP-only cookies (SameSite=None; Secure for modern HTTPS cross-site support)
+    is_prod = bool(os.environ.get("RENDER") or os.environ.get("PORT"))
+    samesite_val = "none" if is_prod else "lax"
+    secure_val = True if is_prod else False
+
     response.set_cookie(
         key="acid_jwt",
         value=token,
         httponly=True,
         max_age=86400 * 7,
-        samesite="lax",
-        secure=False,
+        samesite=samesite_val,
+        secure=secure_val,
     )
     response.set_cookie(
         key="session_token",
         value=token,
         httponly=True,
         max_age=86400 * 7,
-        samesite="lax",
-        secure=False,
+        samesite=samesite_val,
+        secure=secure_val,
     )
 
     return {

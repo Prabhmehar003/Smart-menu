@@ -51,49 +51,78 @@ export default function Login() {
   async function createBackendSession(firebaseUser) {
     const idToken = await firebaseUser.getIdToken();
 
-    const response = await fetch(`${API_BASE}/api/auth/session`, {
-      method: 'POST',
-      credentials: 'include', // Required because our backend authentication uses cookies.
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        idToken,
-        mode: 'signin',
-        deviceType: 'web',
-        deviceName: navigator.userAgent,
-      }),
-    });
-
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      throw new Error(data.message || data.detail || 'Could not verify login session.');
+    // Candidates: explicit API_BASE and same-origin /api proxy
+    const candidateUrls = [`${API_BASE}/api/auth/session`];
+    if (API_BASE && !candidateUrls.includes('/api/auth/session')) {
+      candidateUrls.push('/api/auth/session');
     }
 
-    if (data.userExists === false) {
-      return { userExists: false, googleUser: data.googleUser };
-    }
+    let lastError = null;
 
-    if (data.user) {
-      localStorage.setItem('acid_session', JSON.stringify(data.user));
-      if (data.user.restaurant_name) {
-        localStorage.setItem(
-          'smart_menu_restaurant_setup',
-          JSON.stringify({
-            restaurant_name: data.user.restaurant_name,
-            phone: data.user.restaurant_phone,
-            address: data.user.restaurant_address,
-            currency: data.user.currency || 'USD',
-            tax_rate: data.user.tax_rate ?? 0,
-            service_charge: data.user.service_charge ?? 0,
-            plan: data.user.plan || 'basic',
-          })
-        );
+    for (const endpoint of candidateUrls) {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              idToken,
+              mode: 'signin',
+              deviceType: 'web',
+              deviceName: navigator.userAgent,
+            }),
+          });
+
+          const data = await response.json().catch(() => ({}));
+
+          if (!response.ok) {
+            throw new Error(data.message || data.detail || 'Could not verify login session.');
+          }
+
+          if (data.token) {
+            localStorage.setItem('acid_token', data.token);
+          }
+
+          if (data.userExists === false) {
+            return { userExists: false, googleUser: data.googleUser };
+          }
+
+          if (data.user) {
+            localStorage.setItem('acid_session', JSON.stringify(data.user));
+            if (data.user.restaurant_name) {
+              localStorage.setItem(
+                'smart_menu_restaurant_setup',
+                JSON.stringify({
+                  restaurant_name: data.user.restaurant_name,
+                  phone: data.user.restaurant_phone,
+                  address: data.user.restaurant_address,
+                  currency: data.user.currency || 'USD',
+                  tax_rate: data.user.tax_rate ?? 0,
+                  service_charge: data.user.service_charge ?? 0,
+                  plan: data.user.plan || 'basic',
+                })
+              );
+            }
+          }
+
+          return { userExists: true, user: data.user };
+        } catch (err) {
+          lastError = err;
+          if (attempt === 0) {
+            await new Promise((r) => setTimeout(r, 2000));
+          }
+        }
       }
     }
 
-    return { userExists: true, user: data.user };
+    if (lastError && (lastError.message === 'Load failed' || lastError.message === 'Failed to fetch' || lastError.name === 'TypeError')) {
+      throw new Error('Connection timed out. The backend server is waking up from sleep — please click again in a few moments.');
+    }
+
+    throw lastError || new Error('Could not connect to authentication service.');
   }
 
   /**
@@ -142,6 +171,8 @@ export default function Login() {
         setError('Incorrect password. Please try again or use "Forgot password?".');
       } else if (err.code === 'auth/too-many-requests') {
         setError('Too many failed attempts. Please try again later or reset your password.');
+      } else if (err.message === 'Load failed' || err.message === 'Failed to fetch') {
+        setError('Connection timed out. The backend server is waking up — please click again in a few moments.');
       } else {
         setError(err.message || 'Unable to sign in.');
       }
@@ -193,7 +224,11 @@ export default function Login() {
       handleRedirection();
     } catch (err) {
       console.error('Google login error:', err);
-      setError(err.message || 'Google sign-in failed.');
+      if (err.message === 'Load failed' || err.message === 'Failed to fetch') {
+        setError('Connection timed out. The backend server is waking up — please click again in a few moments.');
+      } else {
+        setError(err.message || 'Google sign-in failed.');
+      }
     } finally {
       setSubmitting(false);
     }
