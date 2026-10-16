@@ -38,8 +38,15 @@ def _connect(row_factory: bool = True):
         raise ValueError("DATABASE_URL environment variable is not set.")
     
     cursor_factory = RealDictCursor if row_factory else None
-    conn = psycopg2.connect(url, cursor_factory=cursor_factory)
-    return conn
+    try:
+        conn = psycopg2.connect(url, cursor_factory=cursor_factory, connect_timeout=5)
+        return conn
+    except Exception as e:
+        if DEFAULT_DATABASE_URL and url != DEFAULT_DATABASE_URL:
+            logger.warning(f"Connection to database failed: {e}. Falling back to default Neon database...")
+            conn = psycopg2.connect(DEFAULT_DATABASE_URL, cursor_factory=cursor_factory, connect_timeout=5)
+            return conn
+        raise
 
 @contextmanager
 def db_cursor(commit: bool = False):

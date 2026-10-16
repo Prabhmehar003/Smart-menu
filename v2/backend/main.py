@@ -98,6 +98,7 @@ async def health_check():
         "status": "healthy" if db_status == "ok" else "degraded",
         "database": db_status,
         "service": "Smart-menu backend",
+        "commit": "db-auto-fallback-v2",
         "timestamp": datetime.utcnow().isoformat()
     }
 
