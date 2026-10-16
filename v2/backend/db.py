@@ -13,12 +13,27 @@ dotenv.load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-# Neon PostgreSQL connection URL
+# Neon / Supabase PostgreSQL connection URL
 DEFAULT_DATABASE_URL = "postgresql://neondb_owner:npg_eUAWmYGtn49O@ep-odd-morning-axq27rn5-pooler.c-4.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
-DATABASE_URL = os.getenv("DATABASE_URL") or DEFAULT_DATABASE_URL
+
+def _sanitize_db_url(url: str | None) -> str | None:
+    if not url:
+        return url
+    if "smartmenu@2005@" in url:
+        return url.replace("smartmenu@2005@", "smartmenu%402005@")
+    import re
+    from urllib.parse import quote_plus
+    m = re.match(r"^(postgres(?:ql)?:\/\/[^:]+:)(.*)@([^@\/]+:\d+\/.*)$", url)
+    if m:
+        prefix, pwd, rest = m.groups()
+        return f"{prefix}{quote_plus(pwd)}@{rest}"
+    return url
+
+DATABASE_URL = _sanitize_db_url(os.getenv("DATABASE_URL")) or DEFAULT_DATABASE_URL
 
 def _connect(row_factory: bool = True):
-    url = os.getenv("DATABASE_URL") or DATABASE_URL or DEFAULT_DATABASE_URL
+    raw_url = os.getenv("DATABASE_URL") or DATABASE_URL or DEFAULT_DATABASE_URL
+    url = _sanitize_db_url(raw_url)
     if not url:
         raise ValueError("DATABASE_URL environment variable is not set.")
     
