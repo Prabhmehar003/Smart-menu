@@ -14,14 +14,16 @@ dotenv.load_dotenv()
 logger = logging.getLogger(__name__)
 
 # Neon PostgreSQL connection URL
-DATABASE_URL = os.getenv("DATABASE_URL")
+DEFAULT_DATABASE_URL = "postgresql://neondb_owner:npg_eUAWmYGtn49O@ep-odd-morning-axq27rn5-pooler.c-4.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+DATABASE_URL = os.getenv("DATABASE_URL") or DEFAULT_DATABASE_URL
 
 def _connect(row_factory: bool = True):
-    if not DATABASE_URL:
+    url = os.getenv("DATABASE_URL") or DATABASE_URL or DEFAULT_DATABASE_URL
+    if not url:
         raise ValueError("DATABASE_URL environment variable is not set.")
     
     cursor_factory = RealDictCursor if row_factory else None
-    conn = psycopg2.connect(DATABASE_URL, cursor_factory=cursor_factory)
+    conn = psycopg2.connect(url, cursor_factory=cursor_factory)
     return conn
 
 @contextmanager

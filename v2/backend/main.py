@@ -85,6 +85,22 @@ try:
 except Exception as e:
     print(f"Warning: could not initialize database on startup: {e}")
 
+@app.get("/api/health")
+async def health_check():
+    db_status = "ok"
+    try:
+        with db_cursor() as cur:
+            cur.execute("SELECT 1;")
+    except Exception as e:
+        db_status = f"error: {e}"
+
+    return {
+        "status": "healthy" if db_status == "ok" else "degraded",
+        "database": db_status,
+        "service": "Smart-menu backend",
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
 # Sessions: in-memory, short-lived (3 hr TTL) backed by PostgreSQL dining_sessions.
 ACTIVE_SESSIONS: dict = {}
 

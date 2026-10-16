@@ -76,10 +76,17 @@ export default function Login() {
             }),
           });
 
-          const data = await response.json().catch(() => ({}));
+          let data = {};
+          try {
+            data = await response.json();
+          } catch (_) {
+            const rawText = await response.text().catch(() => '');
+            data = { detail: rawText };
+          }
 
           if (!response.ok) {
-            throw new Error(data.message || data.detail || 'Could not verify login session.');
+            const errMsg = data?.detail || data?.message || `Server returned error (${response.status})`;
+            throw new Error(errMsg);
           }
 
           if (data.token) {
