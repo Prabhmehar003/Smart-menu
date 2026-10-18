@@ -102,7 +102,7 @@ function StepCard({
       onMouseMove={handleMouseMove}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      className={`relative rounded-3xl p-6 sm:p-7 lg:p-8 flex flex-col justify-between transition-all duration-500 ease-out cursor-pointer group select-none backdrop-blur-md will-change-[transform,opacity,filter] ${opacityClass}`}
+      className={`relative rounded-2xl sm:rounded-3xl p-5 sm:p-6 lg:p-8 flex flex-col justify-between transition-all duration-500 ease-out cursor-pointer group select-none backdrop-blur-md will-change-[transform,opacity,filter] ${opacityClass}`}
       style={{
         transform: transformStyle,
         zIndex,
@@ -335,10 +335,10 @@ export default function HowItWorks() {
       {/* 2. Interactive Foreground UI Container */}
       <div
         ref={containerRef}
-        className="max-w-7xl mx-auto px-6 relative z-10 w-full will-change-[transform,opacity,filter]"
+        className="max-w-7xl mx-auto px-4 sm:px-6 relative z-10 w-full will-change-[transform,opacity,filter]"
       >
         {/* Section Header */}
-        <div ref={headerRef} className="text-center max-w-3xl mx-auto mb-10 lg:mb-14 space-y-3">
+        <div ref={headerRef} className="text-center max-w-3xl mx-auto mb-8 sm:mb-10 lg:mb-14 space-y-3">
           {/* Eyebrow */}
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/15 border border-amber-500/35 text-amber-300 text-xs font-mono tracking-widest uppercase shadow-sm shadow-amber-500/20 backdrop-blur-md">
             <Sparkles className="w-3.5 h-3.5 text-amber-400" />
@@ -361,7 +361,7 @@ export default function HowItWorks() {
 
         {/* Four Floating 3D Glass Cards */}
         <div
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 lg:gap-6 relative"
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 relative"
           style={{ perspective: '1200px' }}
         >
           {HOW_IT_WORKS_STEPS.map((step, index) => (

@@ -223,7 +223,7 @@ function SettingsPage({ t, onSaved, onThemeChange }) {
   }
 
   return (
-    <div className="relative w-full min-h-screen px-6 sm:px-10 lg:px-12 xl:px-16 py-6 pb-28 lg:pb-20 max-w-[1700px] mx-auto">
+    <div className="relative w-full min-h-screen px-3 sm:px-6 lg:px-12 xl:px-16 py-4 sm:py-6 pb-28 lg:pb-20 max-w-[1700px] mx-auto">
       {/* Ambient background glow & subtle dot pattern */}
       <div className="absolute inset-0 pointer-events-none -z-10 overflow-hidden">
         <div className="absolute -top-32 left-1/4 w-[800px] h-[700px] rounded-full blur-[160px] bg-gradient-to-br from-amber-500/12 via-orange-500/6 to-transparent" />
@@ -240,7 +240,7 @@ function SettingsPage({ t, onSaved, onThemeChange }) {
         </p>
       </div>
 
-      <form onSubmit={handleSave} className="relative rounded-[28px] border border-white/10 bg-[#0a0d14]/75 backdrop-blur-2xl p-7 sm:p-10 max-w-3xl shadow-2xl overflow-hidden">
+      <form onSubmit={handleSave} className="relative rounded-2xl sm:rounded-[28px] border border-white/10 bg-[#0a0d14]/75 backdrop-blur-2xl p-4 sm:p-7 lg:p-10 max-w-3xl shadow-2xl overflow-hidden">
         {/* Specular top rim line */}
         <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/15 to-transparent pointer-events-none" />
 

@@ -32,6 +32,8 @@
 @layer base {
   html {
     scroll-behavior: smooth;
+    overflow-x: hidden;
+    max-width: 100%;
   }
 
   html.lenis,
@@ -47,6 +49,7 @@
     background-color: #050508;
     color: #ffffff;
     overflow-x: hidden;
+    max-width: 100%;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }

@@ -355,7 +355,7 @@ function CustomerMenuApp({ session, settings = {} }) {
 
       {/* Header */}
       <header className="sticky top-0 z-40 backdrop-blur-2xl bg-[#050505]/70 border-b border-white/10">
-        <div className="px-6 py-4 flex items-center justify-between">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
               <span style={{ color: menuTheme.secondary, borderColor: `${menuTheme.secondary}4D` }} className="font-mono text-[10px] bg-white/5 px-2.5 py-1 rounded-full border inline-flex items-center gap-1">
@@ -367,12 +367,12 @@ function CustomerMenuApp({ session, settings = {} }) {
                 </span>
               )}
             </div>
-            <h1 className="text-2xl font-black uppercase tracking-tight mt-1.5 bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
+            <h1 className="text-xl sm:text-2xl font-black uppercase tracking-tight mt-1 bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent truncate">
               {settings.restaurant_name || menu_data.restaurant_name}
             </h1>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 shrink-0">
             {!isBasicPlan && placedOrders.length > 0 && (
               <button
                 onClick={() => setIsOrderedModalOpen(true)}
@@ -380,7 +380,7 @@ function CustomerMenuApp({ session, settings = {} }) {
                   borderColor: `${menuTheme.accent}80`,
                   boxShadow: `0 0 16px ${menuTheme.accent}33`,
                 }}
-                className="group relative flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#08090e]/95 border hover:border-white/60 text-white transition-all cursor-pointer"
+                className="group relative flex items-center gap-2 px-3 sm:px-3.5 py-1.5 rounded-full bg-[#08090e]/95 border hover:border-white/60 text-white transition-all cursor-pointer"
                 title="View ordered food"
               >
                 <span className="relative flex h-2 w-2">
@@ -394,7 +394,7 @@ function CustomerMenuApp({ session, settings = {} }) {
                   />
                 </span>
                 <span
-                  className="font-mono text-[11px] font-black uppercase tracking-wider"
+                  className="font-mono text-[10px] sm:text-[11px] font-black uppercase tracking-wider"
                   style={{ color: menuTheme.accent }}
                 >
                   Ordered Food
@@ -417,7 +417,7 @@ function CustomerMenuApp({ session, settings = {} }) {
         </div>
 
         {/* Search */}
-        <div className="px-6 pb-4">
+        <div className="px-4 sm:px-6 pb-3 sm:pb-4">
           <div className="relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
             <input
@@ -425,7 +425,7 @@ function CustomerMenuApp({ session, settings = {} }) {
               placeholder="Search menu items..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-white/5 border border-white/10 rounded-2xl pl-11 pr-10 py-3 font-mono text-xs text-white placeholder:text-white/25 focus:border-[#D6FF00]/50 outline-none"
+              className="w-full bg-white/5 border border-white/10 rounded-2xl pl-11 pr-10 py-2.5 sm:py-3 font-mono text-xs text-white placeholder:text-white/25 focus:border-[#D6FF00]/50 outline-none"
             />
             {searchQuery && (
               <button onClick={() => setSearchQuery('')} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/30 hover:text-white">
@@ -437,12 +437,12 @@ function CustomerMenuApp({ session, settings = {} }) {
 
         {/* Category nav */}
         {!searchQuery.trim() && (
-          <nav className="flex gap-2 px-6 pb-4 overflow-x-auto no-scrollbar">
+          <nav className="flex gap-2 px-4 sm:px-6 pb-3 sm:pb-4 overflow-x-auto no-scrollbar">
             {menu_data.categories.map((cat) => (
               <button
                 key={cat.category_name}
                 onClick={() => scrollToCategory(cat.category_name)}
-                className={`font-mono text-xs px-4 py-2 rounded-xl border whitespace-nowrap transition-all ${
+                className={`font-mono text-xs px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-xl border whitespace-nowrap transition-all ${
                   activeCategory === cat.category_name
                     ? 'text-black font-bold'
                     : 'bg-white/5 text-white/60 border-white/10 hover:border-white/25'
@@ -457,7 +457,7 @@ function CustomerMenuApp({ session, settings = {} }) {
       </header>
 
       {/* Menu grid */}
-      <main className="max-w-6xl mx-auto px-4 py-10 space-y-16 relative z-10">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-12 sm:space-y-16 relative z-10">
         {searchQuery.trim() && filteredCategories.length === 0 && (
           <div className="text-center py-16">
             <p className="font-mono text-white/40 text-sm">No dishes match "{searchQuery}".</p>

@@ -134,7 +134,7 @@ export default function PersonalInfoModal({ isOpen, onClose, user, onUserUpdated
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
         {/* Backdrop */}
         <motion.div
           initial={{ opacity: 0 }}
@@ -150,18 +150,18 @@ export default function PersonalInfoModal({ isOpen, onClose, user, onUserUpdated
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
           transition={{ duration: 0.25, ease: 'easeOut' }}
-          className="relative w-full max-w-2xl bg-[#0c0e14]/95 border border-white/15 rounded-3xl shadow-[0_25px_60px_rgba(0,0,0,0.8)] overflow-hidden z-10 my-8"
+          className="relative w-full max-w-2xl bg-[#0c0e14]/95 border border-white/15 rounded-2xl sm:rounded-3xl shadow-[0_25px_60px_rgba(0,0,0,0.8)] overflow-hidden z-10 my-4 sm:my-8"
         >
           {/* Ambient header glow */}
           <div className="absolute top-0 inset-x-0 h-32 bg-gradient-to-b from-amber-500/10 via-amber-500/5 to-transparent pointer-events-none" />
           <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-amber-400/30 to-transparent pointer-events-none" />
 
           {/* Header Bar */}
-          <div className="relative px-6 sm:px-8 pt-7 pb-5 border-b border-white/10 flex items-start justify-between">
-            <div className="flex items-center gap-4">
+          <div className="relative px-4 sm:px-8 pt-5 sm:pt-7 pb-4 sm:pb-5 border-b border-white/10 flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
               {/* Avatar circle */}
-              <div className="relative">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-amber-500 via-amber-400 to-amber-300 text-black font-mono font-black text-xl flex items-center justify-center shadow-[0_0_20px_rgba(245,158,11,0.35)]">
+              <div className="relative shrink-0">
+                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-tr from-amber-500 via-amber-400 to-amber-300 text-black font-mono font-black text-lg sm:text-xl flex items-center justify-center shadow-[0_0_20px_rgba(245,158,11,0.35)]">
                   {user?.avatar_url ? (
                     <img
                       src={user.avatar_url}
@@ -172,21 +172,21 @@ export default function PersonalInfoModal({ isOpen, onClose, user, onUserUpdated
                     initials
                   )}
                 </div>
-                <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 border-2 border-[#0c0e14] flex items-center justify-center" title="Active">
+                <div className="absolute -bottom-1 -right-1 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-emerald-500 border-2 border-[#0c0e14] flex items-center justify-center" title="Active">
                   <span className="w-1.5 h-1.5 rounded-full bg-white" />
                 </div>
               </div>
 
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-xl font-black text-white tracking-tight">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-lg sm:text-xl font-black text-white tracking-tight truncate">
                     {form.name || 'Admin Profile'}
                   </h2>
-                  <span className="px-2 py-0.5 rounded-full bg-amber-400/10 border border-amber-400/30 text-amber-400 font-mono text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+                  <span className="px-2 py-0.5 rounded-full bg-amber-400/10 border border-amber-400/30 text-amber-400 font-mono text-[9px] sm:text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
                     <ShieldCheck size={11} /> ADMIN
                   </span>
                 </div>
-                <p className="font-mono text-xs text-zinc-400 mt-0.5">
+                <p className="font-mono text-xs text-zinc-400 mt-0.5 truncate">
                   {form.email || user?.email || 'manager@restaurant.com'}
                 </p>
               </div>
@@ -196,14 +196,14 @@ export default function PersonalInfoModal({ isOpen, onClose, user, onUserUpdated
             <button
               type="button"
               onClick={onClose}
-              className="p-2 rounded-xl text-zinc-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-colors cursor-pointer"
+              className="p-1.5 sm:p-2 rounded-xl text-zinc-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-colors cursor-pointer shrink-0"
             >
               <X size={18} />
             </button>
           </div>
 
           {/* Form Content */}
-          <form onSubmit={handleSave} className="p-6 sm:p-8 space-y-6 max-h-[70vh] overflow-y-auto">
+          <form onSubmit={handleSave} className="p-4 sm:p-8 space-y-5 sm:space-y-6 max-h-[75vh] overflow-y-auto">
             {/* Section Tag */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">

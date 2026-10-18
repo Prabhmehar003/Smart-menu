@@ -63,21 +63,38 @@ export default function FinalCTASection({ onOpenDemo }) {
         );
       });
 
-      // MOBILE TIMELINE
+      // MOBILE TIMELINE: Fluid responsive scroll without pinning
       mm.add('(max-width: 768px)', () => {
-        const tl = gsap.timeline({
-          scrollTrigger: {
-            trigger: sectionRef.current,
-            start: 'top top',
-            end: '+=110%',
-            pin: true,
-            scrub: 0.8,
-          },
-        });
-
-        tl.fromTo(iconRef.current, { scale: 0.8, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.3 }, 0);
-        tl.fromTo(headlineRef.current, { y: 25, opacity: 0 }, { y: 0, opacity: 1, duration: 0.35 }, 0.08);
-        tl.fromTo(ctaBtnRef.current, { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.3 }, 0.16);
+        if (headlineRef.current) {
+          gsap.fromTo(
+            headlineRef.current,
+            { y: 20, opacity: 0 },
+            {
+              y: 0,
+              opacity: 1,
+              duration: 0.6,
+              scrollTrigger: {
+                trigger: headlineRef.current,
+                start: 'top 85%',
+              },
+            }
+          );
+        }
+        if (ctaBtnRef.current) {
+          gsap.fromTo(
+            ctaBtnRef.current,
+            { y: 15, opacity: 0 },
+            {
+              y: 0,
+              opacity: 1,
+              duration: 0.5,
+              scrollTrigger: {
+                trigger: ctaBtnRef.current,
+                start: 'top 90%',
+              },
+            }
+          );
+        }
       });
     }, sectionRef);
 
@@ -87,7 +104,7 @@ export default function FinalCTASection({ onOpenDemo }) {
   return (
     <section
       ref={sectionRef}
-      className="relative w-full h-[100svh] min-h-[640px] bg-[#040407] overflow-hidden border-t border-white/5 flex items-center justify-center select-none"
+      className="relative w-full min-h-screen py-20 sm:py-24 lg:py-0 lg:h-[100svh] lg:min-h-[640px] bg-[#040407] overflow-hidden border-t border-white/5 flex items-center justify-center select-none"
     >
       {/* Background Radial Bloom */}
       <div
@@ -101,24 +118,24 @@ export default function FinalCTASection({ onOpenDemo }) {
 
       <div
         ref={containerRef}
-        className="max-w-5xl mx-auto px-6 relative z-10 text-center space-y-6 lg:space-y-8 will-change-[transform,opacity,filter]"
+        className="max-w-5xl mx-auto px-4 sm:px-6 relative z-10 text-center space-y-6 lg:space-y-8 will-change-[transform,opacity,filter]"
       >
         <div
           ref={iconRef}
-          className="w-16 h-16 rounded-2xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center mx-auto shadow-2xl shadow-amber-500/20 will-change-[transform,opacity,filter]"
+          className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center mx-auto shadow-2xl shadow-amber-500/20 will-change-[transform,opacity,filter]"
         >
-          <UtensilsCrossed className="w-8 h-8 text-amber-400" />
+          <UtensilsCrossed className="w-7 h-7 sm:w-8 sm:h-8 text-amber-400" />
         </div>
 
-        <div ref={headlineRef} className="space-y-4 will-change-[transform,opacity,filter]">
-          <h2 className="text-4xl sm:text-5xl md:text-6xl font-extrabold font-display uppercase tracking-tight text-white leading-tight">
-            READY TO REIMAGINE YOUR <br />
+        <div ref={headlineRef} className="space-y-3 sm:space-y-4 will-change-[transform,opacity,filter]">
+          <h2 className="text-3xl sm:text-5xl md:text-6xl font-extrabold font-display uppercase tracking-tight text-white leading-tight">
+            READY TO REIMAGINE YOUR <br className="hidden sm:inline" />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-400 to-amber-500">
               RESTAURANT EXPERIENCE?
             </span>
           </h2>
 
-          <p className="text-zinc-300 font-sans text-base sm:text-lg max-w-2xl mx-auto leading-relaxed">
+          <p className="text-zinc-300 font-sans text-sm sm:text-base md:text-lg max-w-2xl mx-auto leading-relaxed">
             Join leading fine dining venues using Smart Menu to elevate guest dining, increase average order value, and streamline service.
           </p>
         </div>
@@ -126,7 +143,7 @@ export default function FinalCTASection({ onOpenDemo }) {
         <div ref={ctaBtnRef} className="pt-2 flex flex-wrap justify-center items-center gap-4 will-change-[transform,opacity,filter]">
           <button
             onClick={onOpenDemo}
-            className="px-9 sm:px-11 py-4 sm:py-5 rounded-full bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-black font-mono font-bold text-sm uppercase tracking-wider shadow-2xl shadow-amber-500/30 hover:shadow-amber-500/50 hover:scale-105 active:scale-98 transition-all flex items-center gap-3 cursor-pointer"
+            className="w-full sm:w-auto justify-center px-8 sm:px-11 py-4 sm:py-5 rounded-full bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-black font-mono font-bold text-sm uppercase tracking-wider shadow-2xl shadow-amber-500/30 hover:shadow-amber-500/50 hover:scale-105 active:scale-98 transition-all flex items-center gap-3 cursor-pointer"
           >
             <Sparkles className="w-4 h-4 text-black" />
             <span>BUILD YOUR MENU NOW</span>

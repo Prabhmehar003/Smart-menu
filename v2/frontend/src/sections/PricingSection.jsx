@@ -81,7 +81,7 @@ function PlanCard({
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       onClick={onSelect}
-      className={`relative rounded-3xl p-6 sm:p-7 lg:p-8 flex flex-col justify-between transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[transform,opacity,filter,box-shadow] select-none cursor-pointer border-2 ${
+      className={`relative rounded-2xl sm:rounded-3xl p-5 sm:p-7 lg:p-8 flex flex-col justify-between transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[transform,opacity,filter,box-shadow] select-none cursor-pointer border-2 ${
         isPro
           ? isSelected
             ? 'border-lime-400 bg-lime-950/20 shadow-[0_16px_50px_rgba(0,0,0,0.8),0_0_35px_rgba(163,230,53,0.18)] z-20'
@@ -436,7 +436,7 @@ export default function PricingSection({ onOpenDemo }) {
     <section
       ref={sectionRef}
       id="pricing"
-      className="relative w-full md:h-[100svh] md:min-h-[760px] bg-[#050608] border-t border-white/5 overflow-hidden flex items-center justify-center select-none py-16 md:py-0"
+      className="relative w-full min-h-screen py-16 sm:py-20 xl:py-0 xl:h-[100svh] xl:min-h-[760px] bg-[#050608] border-t border-white/5 overflow-hidden flex items-center justify-center select-none"
     >
       {/* 4K CINEMATIC RESTAURANT VIDEO BACKGROUND */}
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">

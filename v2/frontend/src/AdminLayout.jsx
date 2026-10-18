@@ -191,11 +191,11 @@ function AdminLayout({
       ================================================= */}
       <div className="lg:pl-[76px] flex flex-col min-h-screen">
         {/* Floating Top Bar (Controls for Search, Theme, Notifications, Profile) */}
-        <header className="sticky top-0 z-40 px-6 py-4 flex items-center justify-between gap-4 pointer-events-none">
+        <header className="sticky top-0 z-40 px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3 sm:gap-4 pointer-events-none">
           {/* Left: Optional search or breadcrumb pill */}
-          <div className="pointer-events-auto">
+          <div className="pointer-events-auto flex-1 max-w-xs">
             {onSearchChange ? (
-              <div className="relative w-full max-w-xs">
+              <div className="relative w-full">
                 <Search
                   size={14}
                   className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400"
@@ -212,7 +212,7 @@ function AdminLayout({
           </div>
 
           {/* Right: Floating Glass Controls */}
-          <div className="flex items-center gap-2.5 pointer-events-auto shrink-0">
+          <div className="flex items-center gap-2 sm:gap-2.5 pointer-events-auto shrink-0">
             {/* Notifications Button */}
             <button
               type="button"
@@ -231,7 +231,7 @@ function AdminLayout({
             <button
               type="button"
               onClick={() => setShowPersonalModal(true)}
-              className="h-9 px-3 rounded-full bg-[#0c0e14]/70 backdrop-blur-xl border border-white/10 hover:border-amber-400/40 hover:bg-white/10 flex items-center gap-2 shadow-lg transition-all duration-200 cursor-pointer active:scale-95 group"
+              className="h-9 px-2.5 sm:px-3 rounded-full bg-[#0c0e14]/70 backdrop-blur-xl border border-white/10 hover:border-amber-400/40 hover:bg-white/10 flex items-center gap-2 shadow-lg transition-all duration-200 cursor-pointer active:scale-95 group"
               title="Click to view & edit personal profile"
             >
               <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-amber-500 via-amber-400 to-amber-300 text-black font-mono text-[10px] font-black flex items-center justify-center shadow-[0_0_10px_rgba(245,158,11,0.3)] group-hover:shadow-[0_0_15px_rgba(245,158,11,0.5)] overflow-hidden">
@@ -253,7 +253,7 @@ function AdminLayout({
         </header>
 
         {/* Dynamic Page Content */}
-        <main className="flex-1 w-full min-w-0">
+        <main className="flex-1 w-full min-w-0 pb-24 lg:pb-8">
           {children}
         </main>
 
@@ -261,7 +261,7 @@ function AdminLayout({
             MOBILE BOTTOM FLOATING DOCK (< 1024px)
         ================================================= */}
         <nav
-          className="lg:hidden fixed bottom-3 left-4 right-4 z-50 bg-[#07080d]/90 backdrop-blur-2xl border border-white/15 px-3 py-2 rounded-2xl flex items-center justify-around shadow-2xl"
+          className="lg:hidden fixed bottom-3 left-2 right-2 sm:left-4 sm:right-4 z-50 bg-[#07080d]/90 backdrop-blur-2xl border border-white/15 px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-2xl flex items-center justify-around shadow-2xl"
         >
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
@@ -273,14 +273,14 @@ function AdminLayout({
                 type="button"
                 onClick={() => onNavigate(item.key)}
                 aria-current={isActive ? 'page' : undefined}
-                className={`flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl font-mono text-[9px] font-bold tracking-wide transition-all ${
+                className={`flex flex-col items-center gap-0.5 sm:gap-1 px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-xl font-mono text-[8px] sm:text-[9px] font-bold tracking-wide transition-all ${
                   isActive
                     ? 'bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-black shadow-[0_0_15px_rgba(245,158,11,0.35)]'
                     : 'text-zinc-400 hover:text-white'
                 }`}
               >
-                <Icon size={16} />
-                <span>{item.label.split(' ')[0]}</span>
+                <Icon size={15} />
+                <span className="truncate max-w-[54px]">{item.label.split(' ')[0]}</span>
               </button>
             );
           })}

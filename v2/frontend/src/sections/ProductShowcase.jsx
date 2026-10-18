@@ -57,25 +57,25 @@ function TableQRVisualization() {
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
           TABLE REGISTRY ONLINE
         </span>
-        <span className="text-zinc-500">24/24 QR CODES ACTIVE</span>
+        <span className="text-zinc-500 hidden sm:inline">24/24 QR ACTIVE</span>
       </div>
 
       {/* 4 Table Cards in single compact row */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
         {tables.map((table) => (
           <div
             key={table.id}
-            className="p-2 rounded-xl bg-[#090a0f] border border-white/10 hover:border-amber-400/40 transition-colors duration-200 flex flex-col items-center text-center group"
+            className="p-1.5 sm:p-2 rounded-xl bg-[#090a0f] border border-white/10 hover:border-amber-400/40 transition-colors duration-200 flex flex-col items-center text-center group"
           >
-            <div className="w-8 h-8 rounded-lg bg-black border border-amber-400/30 flex items-center justify-center relative mb-1 group-hover:border-amber-400 transition-colors">
-              <QrCode className="w-5 h-5 text-amber-300" />
+            <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-black border border-amber-400/30 flex items-center justify-center relative mb-0.5 sm:mb-1 group-hover:border-amber-400 transition-colors">
+              <QrCode className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-amber-300" />
               <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-400 ring-1 ring-black" />
             </div>
 
-            <span className="text-[11px] font-bold font-mono text-white group-hover:text-amber-300 transition-colors leading-tight">
+            <span className="text-[9px] sm:text-[11px] font-bold font-mono text-white group-hover:text-amber-300 transition-colors leading-tight">
               {table.name}
             </span>
-            <span className="text-[9px] font-mono text-zinc-400 mt-0.5 leading-tight truncate w-full">
+            <span className="text-[8px] sm:text-[9px] font-mono text-zinc-400 mt-0.5 leading-tight truncate w-full">
               {table.zone}
             </span>
           </div>
@@ -83,10 +83,10 @@ function TableQRVisualization() {
       </div>
 
       {/* Bottom URL Handshake Strip */}
-      <div className="px-3 py-1.5 rounded-xl bg-black/40 border border-white/5 flex items-center justify-between text-[10px] font-mono">
-        <span className="text-zinc-400 flex items-center gap-1.5">
-          <ShieldCheck className="w-3 h-3 text-emerald-400" />
-          Instant Access Handshake:
+      <div className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl bg-black/40 border border-white/5 flex items-center justify-between text-[9px] sm:text-[10px] font-mono">
+        <span className="text-zinc-400 flex items-center gap-1.5 truncate">
+          <ShieldCheck className="w-3 h-3 text-emerald-400 shrink-0" />
+          <span className="truncate">Instant Access Handshake:</span>
         </span>
         <span className="text-amber-400 font-semibold truncate ml-2">smartmenu.app/t/01</span>
       </div>
@@ -187,28 +187,28 @@ function OrderFlowVisualization() {
         <span className="text-zinc-500">NO WAITER DELAY</span>
       </div>
 
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
         {stages.map((stg, idx) => (
           <div
             key={stg.title}
-            className="p-2 rounded-xl bg-[#090a0f] border border-white/10 hover:border-amber-400/40 transition-colors duration-200 flex flex-col items-center text-center"
+            className="p-1.5 sm:p-2 rounded-xl bg-[#090a0f] border border-white/10 hover:border-amber-400/40 transition-colors duration-200 flex flex-col items-center text-center"
           >
-            <div className="w-6 h-6 rounded-md bg-white/5 border border-white/10 flex items-center justify-center mb-1">
+            <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-md bg-white/5 border border-white/10 flex items-center justify-center mb-0.5 sm:mb-1">
               {stg.icon}
             </div>
-            <span className="text-[11px] font-bold font-mono text-white leading-tight">{stg.title}</span>
-            <span className="text-[9px] font-mono text-zinc-400 mt-0.5 leading-tight truncate w-full">{stg.desc}</span>
-            <div className="mt-1 text-[8px] font-mono text-amber-400">STEP 0{idx + 1}</div>
+            <span className="text-[9px] sm:text-[11px] font-bold font-mono text-white leading-tight">{stg.title}</span>
+            <span className="text-[8px] sm:text-[9px] font-mono text-zinc-400 mt-0.5 leading-tight truncate w-full">{stg.desc}</span>
+            <div className="mt-0.5 sm:mt-1 text-[7px] sm:text-[8px] font-mono text-amber-400">STEP 0{idx + 1}</div>
           </div>
         ))}
       </div>
 
-      <div className="px-3 py-1.5 rounded-xl bg-black/40 border border-white/5 flex items-center justify-between text-[10px] font-mono">
-        <span className="text-zinc-400 flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-          Live Ticket #108:
+      <div className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl bg-black/40 border border-white/5 flex items-center justify-between text-[9px] sm:text-[10px] font-mono">
+        <span className="text-zinc-400 flex items-center gap-1.5 truncate">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+          <span className="truncate">Live Ticket #108:</span>
         </span>
-        <span className="text-amber-400 font-semibold truncate ml-2">Truffle Tagliolini → Fired (0s ago)</span>
+        <span className="text-amber-400 font-semibold truncate ml-2">Tagliolini → Fired</span>
       </div>
     </div>
   );
@@ -405,7 +405,7 @@ export default function ProductShowcase() {
 
       <div
         ref={containerRef}
-        className="max-w-7xl mx-auto px-6 relative z-10 w-full will-change-[transform,opacity,filter]"
+        className="max-w-7xl mx-auto px-4 sm:px-6 relative z-10 w-full will-change-[transform,opacity,filter]"
       >
         {/* Section Header */}
         <div ref={headerRef} className="text-center max-w-3xl mx-auto mb-5 lg:mb-7 space-y-2">

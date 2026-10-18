@@ -342,10 +342,10 @@ function DashboardPage({ t, mode, onNavigate, settings = {} }) {
           </div>
         </div>
       ) : (
-        <div className="relative z-10 w-full max-w-7xl mx-auto px-5 sm:px-8 mt-1 sm:mt-2">
+        <div className="relative z-10 w-full max-w-7xl mx-auto px-3 sm:px-8 mt-1 sm:mt-2">
         {/* Perfectly Proportioned Centered Header (Single-line hero balance) */}
         <div className="text-center max-w-5xl mx-auto mb-6 sm:mb-7 lg:mb-8 space-y-2 sm:space-y-2.5">
-          <h1 className="text-3xl sm:text-4xl md:text-[46px] lg:text-[54px] xl:text-[58px] font-black font-display uppercase tracking-tight text-white leading-tight whitespace-nowrap">
+          <h1 className="text-2xl sm:text-4xl md:text-[46px] lg:text-[54px] xl:text-[58px] font-black font-display uppercase tracking-tight text-white leading-tight">
             RESTAURANT <span className="bg-gradient-to-r from-amber-400 via-amber-200 to-amber-500 bg-clip-text text-transparent">OPERATIONS HUB</span>
           </h1>
 

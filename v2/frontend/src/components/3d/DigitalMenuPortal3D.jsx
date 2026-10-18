@@ -63,7 +63,7 @@ export default function DigitalMenuPortal3D({ mousePos = { x: 0, y: 0 } }) {
 
       {/* MAIN 3D ECOSYSTEM WRAPPER */}
       <div
-        className="relative z-20 transition-transform duration-100 ease-out will-change-transform flex items-center justify-center"
+        className="relative z-20 transition-transform duration-100 ease-out will-change-transform flex items-center justify-center scale-[0.70] sm:scale-[0.84] md:scale-95 lg:scale-100 origin-center"
         style={{
           transformStyle: 'preserve-3d',
           transform: `
@@ -81,7 +81,7 @@ export default function DigitalMenuPortal3D({ mousePos = { x: 0, y: 0 } }) {
 
         {/* LAYER 2: HIGH-DEFINITION 3D PHYSICAL GLASS MENU PORTAL */}
         <div
-          className="relative w-[330px] sm:w-[370px] lg:w-[410px] rounded-[38px] bg-gradient-to-b from-[#121422]/96 via-[#0a0c16]/96 to-[#06070e]/98 backdrop-blur-3xl p-4 sm:p-5 border border-amber-500/40 shadow-2xl pointer-events-auto overflow-hidden text-white"
+          className="relative w-[300px] sm:w-[360px] lg:w-[410px] rounded-[38px] bg-gradient-to-b from-[#121422]/96 via-[#0a0c16]/96 to-[#06070e]/98 backdrop-blur-3xl p-4 sm:p-5 border border-amber-500/40 shadow-2xl pointer-events-auto overflow-hidden text-white"
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
           style={{

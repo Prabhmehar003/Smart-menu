@@ -62,7 +62,7 @@ export default function Navbar({ onOpenDemo, onOpenSignIn }) {
           : 'py-6 bg-transparent border-b border-white/5'
       }`}
     >
-      <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between">
         {/* Left: Brand Logo & Wordmark */}
         <motion.a
           href="#hero"
@@ -73,16 +73,16 @@ export default function Navbar({ onOpenDemo, onOpenSignIn }) {
           variants={itemVariants}
           whileHover={{ scale: 1.04, rotate: 2 }}
           transition={{ duration: 0.25, ease: 'easeOut' }}
-          className="flex items-center gap-3 group cursor-pointer"
+          className="flex items-center gap-2.5 sm:gap-3 group cursor-pointer"
         >
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500/20 via-amber-400/30 to-amber-200/10 border border-amber-500/30 flex items-center justify-center shadow-lg shadow-amber-500/10 group-hover:border-amber-400/60 transition-colors">
-            <UtensilsCrossed className="w-5 h-5 text-amber-400 group-hover:text-amber-300 transition-colors" />
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-amber-500/20 via-amber-400/30 to-amber-200/10 border border-amber-500/30 flex items-center justify-center shadow-lg shadow-amber-500/10 group-hover:border-amber-400/60 transition-colors">
+            <UtensilsCrossed className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400 group-hover:text-amber-300 transition-colors" />
           </div>
           <div className="flex flex-col">
-            <span className="font-semibold text-lg tracking-widest text-white font-display uppercase leading-tight">
+            <span className="font-semibold text-base sm:text-lg tracking-widest text-white font-display uppercase leading-tight">
               SMART <span className="text-amber-400 font-bold">MENU</span>
             </span>
-            <span className="text-[9px] tracking-[0.25em] text-zinc-400 font-mono uppercase">
+            <span className="text-[8.5px] sm:text-[9px] tracking-[0.25em] text-zinc-400 font-mono uppercase">
               Next-Gen Dining
             </span>
           </div>
@@ -125,9 +125,10 @@ export default function Navbar({ onOpenDemo, onOpenSignIn }) {
         <div className="md:hidden flex items-center">
           <button
             onClick={() => setMobileOpen(!mobileOpen)}
-            className="p-2 text-zinc-300 hover:text-white rounded-lg bg-white/5 border border-white/10"
+            aria-label={mobileOpen ? 'Close navigation menu' : 'Open navigation menu'}
+            className="p-2 sm:p-2.5 text-zinc-300 hover:text-white rounded-xl bg-white/5 border border-white/10 active:scale-95 transition-all"
           >
-            {mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            {mobileOpen ? <X className="w-5 h-5 sm:w-6 sm:h-6" /> : <Menu className="w-5 h-5 sm:w-6 sm:h-6" />}
           </button>
         </div>
       </div>
@@ -139,7 +140,7 @@ export default function Navbar({ onOpenDemo, onOpenSignIn }) {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="md:hidden bg-[#0a0b10]/95 backdrop-blur-2xl border-b border-white/10 px-6 py-6 flex flex-col gap-4"
+            className="md:hidden bg-[#0a0b10]/95 backdrop-blur-2xl border-b border-white/10 px-4 sm:px-6 py-6 flex flex-col gap-3 max-h-[calc(100vh-80px)] overflow-y-auto shadow-2xl"
           >
             {navLinks.map((link) => (
               <a
@@ -150,20 +151,22 @@ export default function Navbar({ onOpenDemo, onOpenSignIn }) {
                   setMobileOpen(false);
                   scrollToSection(link.href);
                 }}
-                className="text-sm font-mono tracking-widest text-zinc-300 hover:text-amber-400 py-2 border-b border-white/5 cursor-pointer"
+                className="text-xs sm:text-sm font-mono tracking-widest text-zinc-300 hover:text-amber-400 py-3 border-b border-white/5 cursor-pointer flex items-center justify-between"
               >
-                {link.name}
+                <span>{link.name}</span>
+                <span className="text-zinc-600 text-xs">→</span>
               </a>
             ))}
-            <div className="flex flex-col gap-2 pt-2">
+            <div className="flex flex-col gap-2 pt-3">
               <button
                 onClick={() => {
                   setMobileOpen(false);
                   handleSignInClick();
                 }}
-                className="w-full py-3 rounded-xl bg-amber-400 text-black font-mono font-bold text-xs tracking-wider uppercase shadow-lg shadow-amber-500/20"
+                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-black font-mono font-bold text-xs tracking-wider uppercase shadow-lg shadow-amber-500/20 active:scale-98 transition-all cursor-pointer flex items-center justify-center gap-2"
               >
-                GET STARTED
+                <Sparkles className="w-3.5 h-3.5 text-black" />
+                <span>GET STARTED</span>
               </button>
             </div>
           </motion.div>

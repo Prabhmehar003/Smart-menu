@@ -92,7 +92,7 @@ function ProblemCard({
       onMouseMove={handleMouseMove}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      className={`relative rounded-[28px] p-7 lg:p-8 flex flex-col justify-between cursor-pointer transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[transform,opacity,filter,box-shadow] select-none ${
+      className={`relative rounded-[24px] sm:rounded-[28px] p-5 sm:p-7 lg:p-8 flex flex-col justify-between cursor-pointer transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[transform,opacity,filter,box-shadow] select-none ${
         isHovered ? 'z-30' : 'z-10'
       }`}
       style={{
@@ -282,32 +282,38 @@ export default function ProblemSection() {
         );
       });
 
-      // MOBILE TIMELINE (Responsive & Touch Friendly)
+      // MOBILE TIMELINE (Responsive & Touch Friendly, fluid scroll without pinning)
       mm.add('(max-width: 768px)', () => {
-        const tl = gsap.timeline({
-          scrollTrigger: {
-            trigger: sectionRef.current,
-            start: 'top top',
-            end: '+=130%',
-            pin: true,
-            scrub: 0.8,
-          },
-        });
+        if (headlineRef.current) {
+          gsap.fromTo(
+            headlineRef.current,
+            { opacity: 0, y: 20 },
+            {
+              opacity: 1,
+              y: 0,
+              duration: 0.6,
+              scrollTrigger: {
+                trigger: headlineRef.current,
+                start: 'top 85%',
+              },
+            }
+          );
+        }
 
-        tl.fromTo(
-          headlineRef.current,
-          { opacity: 0, y: 20 },
-          { opacity: 1, y: 0, duration: 0.25 },
-          0
-        );
-
-        cardRefs.current.forEach((card, idx) => {
+        cardRefs.current.forEach((card) => {
           if (!card) return;
-          tl.fromTo(
+          gsap.fromTo(
             card,
-            { y: 25, opacity: 0, scale: 0.96 },
-            { y: 0, opacity: 1, scale: 1, duration: 0.3 },
-            0.08 + idx * 0.06
+            { y: 24, opacity: 0 },
+            {
+              y: 0,
+              opacity: 1,
+              duration: 0.5,
+              scrollTrigger: {
+                trigger: card,
+                start: 'top 88%',
+              },
+            }
           );
         });
       });
@@ -320,7 +326,7 @@ export default function ProblemSection() {
     <section
       ref={sectionRef}
       id="problem"
-      className="relative w-full h-[100svh] min-h-[740px] overflow-hidden flex items-center justify-center select-none bg-[#050508]"
+      className="relative w-full min-h-screen py-16 sm:py-20 lg:py-0 lg:h-[100svh] lg:min-h-[740px] overflow-hidden flex items-center justify-center select-none bg-[#050508]"
     >
       {/* =======================================================
           1. CINEMATIC BACKGROUND VIDEO
@@ -365,7 +371,7 @@ export default function ProblemSection() {
          ======================================================= */}
       <div
         ref={containerRef}
-        className="max-w-7xl mx-auto px-6 relative z-10 w-full will-change-[transform,opacity,filter]"
+        className="max-w-7xl mx-auto px-4 sm:px-6 relative z-10 w-full will-change-[transform,opacity,filter]"
       >
         {/* Section Header */}
         <div className="max-w-3xl mb-10 lg:mb-12 space-y-3">

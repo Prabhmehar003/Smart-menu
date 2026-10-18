@@ -93,7 +93,7 @@ export default function NotificationsModal({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
           {/* Backdrop with rich blur */}
           <motion.div
             initial={{ opacity: 0 }}
@@ -110,7 +110,7 @@ export default function NotificationsModal({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 15 }}
             transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-            className="relative w-full max-w-xl rounded-[28px] bg-[#0c0e14]/95 border border-white/15 p-6 sm:p-7 shadow-[0_25px_60px_rgba(0,0,0,0.85),0_0_40px_rgba(245,158,11,0.08)] backdrop-blur-2xl z-10 my-auto overflow-hidden flex flex-col max-h-[88vh]"
+            className="relative w-full max-w-xl rounded-2xl sm:rounded-[28px] bg-[#0c0e14]/95 border border-white/15 p-4 sm:p-7 shadow-[0_25px_60px_rgba(0,0,0,0.85),0_0_40px_rgba(245,158,11,0.08)] backdrop-blur-2xl z-10 my-auto overflow-hidden flex flex-col max-h-[88vh]"
           >
             {/* Top Amber Ambient Glow */}
             <div className="pointer-events-none absolute -top-24 left-1/2 -translate-x-1/2 w-80 h-32 bg-amber-500/20 blur-3xl rounded-full" />

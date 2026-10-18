@@ -88,21 +88,40 @@ export default function TestimonialsSection() {
         );
       });
 
-      // MOBILE TIMELINE
+      // MOBILE TIMELINE: Fluid scroll without pinning
       mm.add('(max-width: 768px)', () => {
-        const tl = gsap.timeline({
-          scrollTrigger: {
-            trigger: sectionRef.current,
-            start: 'top top',
-            end: '+=120%',
-            pin: true,
-            scrub: 0.8,
-          },
-        });
+        if (headerRef.current) {
+          gsap.fromTo(
+            headerRef.current,
+            { opacity: 0, y: 20 },
+            {
+              opacity: 1,
+              y: 0,
+              duration: 0.6,
+              scrollTrigger: {
+                trigger: headerRef.current,
+                start: 'top 85%',
+              },
+            }
+          );
+        }
 
-        tl.fromTo(headerRef.current, { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.3 }, 0);
-        tl.fromTo(card1Ref.current, { y: 25, opacity: 0 }, { y: 0, opacity: 1, duration: 0.35 }, 0.1);
-        tl.fromTo(card2Ref.current, { y: 25, opacity: 0 }, { y: 0, opacity: 1, duration: 0.35 }, 0.15);
+        [card1Ref.current, card2Ref.current].forEach((card) => {
+          if (!card) return;
+          gsap.fromTo(
+            card,
+            { y: 24, opacity: 0 },
+            {
+              y: 0,
+              opacity: 1,
+              duration: 0.5,
+              scrollTrigger: {
+                trigger: card,
+                start: 'top 88%',
+              },
+            }
+          );
+        });
       });
     }, sectionRef);
 
@@ -113,13 +132,13 @@ export default function TestimonialsSection() {
     <section
       ref={sectionRef}
       id="testimonials"
-      className="relative w-full h-[100svh] min-h-[720px] bg-[#07080c] border-t border-white/5 overflow-hidden flex items-center justify-center select-none"
+      className="relative w-full min-h-screen py-16 sm:py-20 lg:py-0 lg:h-[100svh] lg:min-h-[720px] bg-[#07080c] border-t border-white/5 overflow-hidden flex items-center justify-center select-none"
     >
       <div
         ref={containerRef}
-        className="max-w-7xl mx-auto px-6 relative z-10 w-full will-change-[transform,opacity,filter]"
+        className="max-w-7xl mx-auto px-4 sm:px-6 relative z-10 w-full will-change-[transform,opacity,filter]"
       >
-        <div ref={headerRef} className="text-center max-w-3xl mx-auto mb-12 lg:mb-16 space-y-3">
+        <div ref={headerRef} className="text-center max-w-3xl mx-auto mb-8 sm:mb-12 lg:mb-16 space-y-3">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-mono tracking-widest uppercase">
             <Quote className="w-3.5 h-3.5" />
             <span>FINE DINING TESTIMONIALS</span>
@@ -129,10 +148,10 @@ export default function TestimonialsSection() {
           </h2>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6 lg:gap-8">
           <div
             ref={card1Ref}
-            className="p-7 lg:p-8 rounded-3xl bg-[#0b0c13] border border-white/10 flex flex-col justify-between space-y-6 shadow-2xl shadow-black/80 will-change-[transform,opacity,filter]"
+            className="p-5 sm:p-7 lg:p-8 rounded-3xl bg-[#0b0c13] border border-white/10 flex flex-col justify-between space-y-6 shadow-2xl shadow-black/80 will-change-[transform,opacity,filter]"
           >
             <div className="space-y-4">
               <div className="flex gap-1">
@@ -156,7 +175,7 @@ export default function TestimonialsSection() {
 
           <div
             ref={card2Ref}
-            className="p-7 lg:p-8 rounded-3xl bg-[#0b0c13] border border-white/10 flex flex-col justify-between space-y-6 shadow-2xl shadow-black/80 will-change-[transform,opacity,filter]"
+            className="p-5 sm:p-7 lg:p-8 rounded-3xl bg-[#0b0c13] border border-white/10 flex flex-col justify-between space-y-6 shadow-2xl shadow-black/80 will-change-[transform,opacity,filter]"
           >
             <div className="space-y-4">
               <div className="flex gap-1">

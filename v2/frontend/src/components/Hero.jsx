@@ -241,7 +241,7 @@ export default function Hero({ onOpenDemo, onOpenSignIn }) {
     <section
       ref={heroRef}
       id="hero"
-      className="relative w-full h-[100svh] min-h-[760px] overflow-hidden bg-[#050508] select-none"
+      className="relative w-full h-[100svh] min-h-[640px] lg:min-h-[760px] overflow-hidden bg-[#050508] select-none"
     >
       {/* LAYER 1: Background Video & Overlays */}
       <HeroBackground scrollProgress={0} />
@@ -262,10 +262,10 @@ export default function Hero({ onOpenDemo, onOpenSignIn }) {
       {/* LAYER 2: Main Hero Content (Pinned & Scrubbed) */}
       <div
         ref={heroContentRef}
-        className="relative z-20 max-w-7xl mx-auto w-full h-full px-6 pt-32 pb-16 md:pt-40 md:pb-24 grid grid-cols-1 lg:grid-cols-12 items-center gap-12 will-change-[transform,opacity,filter]"
+        className="relative z-20 max-w-7xl mx-auto w-full h-full px-4 sm:px-6 pt-24 sm:pt-32 pb-14 sm:pb-16 md:pt-40 md:pb-24 grid grid-cols-1 lg:grid-cols-12 items-center gap-8 lg:gap-12 will-change-[transform,opacity,filter]"
       >
         {/* LEFT COLUMN: Hero Copy & CTA */}
-        <div className="lg:col-span-6 flex flex-col justify-center space-y-8 text-left">
+        <div className="lg:col-span-6 flex flex-col justify-center space-y-6 sm:space-y-8 text-left">
           {/* Badge */}
           <motion.div
             initial={{ opacity: 0, y: -4 }}
@@ -283,7 +283,7 @@ export default function Hero({ onOpenDemo, onOpenSignIn }) {
               initial="hidden"
               animate="visible"
               variants={headlineLine1Variants}
-              className="text-4xl sm:text-6xl md:text-7xl font-extrabold font-display uppercase tracking-tight text-white leading-[0.95]"
+              className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold font-display uppercase tracking-tight text-white leading-[1.04] sm:leading-[0.95]"
             >
               {HERO_COPY.headlineLine1}
             </motion.h1>
@@ -291,7 +291,7 @@ export default function Hero({ onOpenDemo, onOpenSignIn }) {
               initial="hidden"
               animate="visible"
               variants={headlineLine2Variants}
-              className="text-4xl sm:text-6xl md:text-7xl font-extrabold font-display uppercase tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-400 to-amber-500 leading-[0.95]"
+              className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold font-display uppercase tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-400 to-amber-500 leading-[1.04] sm:leading-[0.95]"
             >
               {HERO_COPY.headlineLine2}
             </motion.h1>
@@ -302,7 +302,7 @@ export default function Hero({ onOpenDemo, onOpenSignIn }) {
             initial="hidden"
             animate="visible"
             variants={descriptionVariants}
-            className="text-base sm:text-lg text-zinc-300 font-sans max-w-xl font-normal leading-relaxed"
+            className="text-sm sm:text-base md:text-lg text-zinc-300 font-sans max-w-xl font-normal leading-relaxed"
           >
             {HERO_COPY.subtext}
           </motion.p>
@@ -312,14 +312,14 @@ export default function Hero({ onOpenDemo, onOpenSignIn }) {
             initial="hidden"
             animate="visible"
             variants={ctaVariants}
-            className="flex flex-wrap items-center gap-4 pt-2"
+            className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3.5 sm:gap-4 pt-1 sm:pt-2"
           >
             <motion.button
               onClick={onOpenSignIn || onOpenDemo}
               whileHover={{ y: -1, scale: 1.015 }}
               whileTap={{ scale: 0.98 }}
               transition={{ duration: 0.2 }}
-              className="group px-8 py-4 rounded-full bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-black font-mono font-bold text-sm uppercase tracking-wider shadow-xl shadow-amber-500/25 hover:shadow-amber-500/40 transition-all duration-200 flex items-center gap-3 cursor-pointer"
+              className="group w-full sm:w-auto justify-center px-6 sm:px-8 py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-black font-mono font-bold text-xs sm:text-sm uppercase tracking-wider shadow-xl shadow-amber-500/25 hover:shadow-amber-500/40 transition-all duration-200 flex items-center gap-3 cursor-pointer"
             >
               <span>{HERO_COPY.primaryCTA}</span>
               <ArrowRight className="w-4 h-4 transform group-hover:translate-x-1 transition-transform duration-200 text-black" />
@@ -330,7 +330,7 @@ export default function Hero({ onOpenDemo, onOpenSignIn }) {
               whileHover={{ y: -1, scale: 1.015 }}
               whileTap={{ scale: 0.98 }}
               transition={{ duration: 0.2 }}
-              className="px-7 py-4 rounded-full bg-white/5 border border-white/15 hover:border-amber-400/40 text-white font-mono text-sm uppercase tracking-wider backdrop-blur-md hover:bg-white/10 transition-all duration-200 flex items-center gap-2.5"
+              className="w-full sm:w-auto justify-center px-6 sm:px-7 py-3.5 sm:py-4 rounded-full bg-white/5 border border-white/15 hover:border-amber-400/40 text-white font-mono text-xs sm:text-sm uppercase tracking-wider backdrop-blur-md hover:bg-white/10 transition-all duration-200 flex items-center gap-2.5"
             >
               <Play className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
               <span>{HERO_COPY.secondaryCTA}</span>
@@ -342,18 +342,18 @@ export default function Hero({ onOpenDemo, onOpenSignIn }) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.1, duration: 0.25 }}
-            className="pt-6 flex flex-wrap items-center gap-6 text-xs font-mono text-zinc-400 border-t border-white/10"
+            className="pt-4 sm:pt-6 flex flex-wrap items-center gap-4 sm:gap-6 text-[11px] sm:text-xs font-mono text-zinc-400 border-t border-white/10"
           >
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-amber-400" />
+              <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
               <span>No App Download Needed</span>
             </div>
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-amber-400" />
+              <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
               <span>Instant POS Sync</span>
             </div>
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-amber-400" />
+              <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
               <span>12-Language AI</span>
             </div>
           </motion.div>
@@ -364,7 +364,7 @@ export default function Hero({ onOpenDemo, onOpenSignIn }) {
           initial="hidden"
           animate="visible"
           variants={sceneVariants}
-          className="lg:col-span-6 w-full h-[55vh] sm:h-[65vh] lg:h-[75vh] relative flex items-center justify-center"
+          className="lg:col-span-6 w-full h-[45vh] sm:h-[55vh] lg:h-[75vh] relative flex items-center justify-center overflow-visible"
         >
           <DigitalMenuPortal3D mousePos={mousePos} />
         </motion.div>

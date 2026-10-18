@@ -351,7 +351,7 @@ function OrdersPage({ t, mode, settings = {}, initialSelectedOrderId, onClearSel
       </div>
 
       {/* Main Content Container */}
-      <div className="relative z-10 w-full min-h-screen px-4 sm:px-8 lg:px-12 py-8 pb-28 max-w-[1700px] mx-auto select-none antialiased">
+      <div className="relative z-10 w-full min-h-screen px-3 sm:px-8 lg:px-12 py-6 sm:py-8 pb-28 max-w-[1700px] mx-auto select-none antialiased">
         
         {/* Top Header: "Orders" on left, Date on right */}
         <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
@@ -383,10 +383,10 @@ function OrdersPage({ t, mode, settings = {}, initialSelectedOrderId, onClearSel
         {/* Controls Bar: Glassmorphic Tabs & Search */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-7">
           {/* Glassmorphic Status Tabs */}
-          <div className="inline-flex items-center gap-2 bg-[#08090e]/80 p-1.5 rounded-2xl border border-white/10 backdrop-blur-xl shadow-lg" role="tablist">
+          <div className="flex items-center gap-1.5 sm:gap-2 bg-[#08090e]/80 p-1.5 rounded-2xl border border-white/10 backdrop-blur-xl shadow-lg max-w-full overflow-x-auto no-scrollbar shrink-0" role="tablist">
             <button
               onClick={() => { setActiveTab('all'); setCurrentPage(1); }}
-              className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+              className={`px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                 activeTab === 'all'
                   ? 'bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-black font-extrabold shadow-[0_0_15px_rgba(245,158,11,0.35)]'
                   : 'bg-transparent text-zinc-400 hover:text-white hover:bg-white/5'
@@ -397,7 +397,7 @@ function OrdersPage({ t, mode, settings = {}, initialSelectedOrderId, onClearSel
 
             <button
               onClick={() => { setActiveTab('process'); setCurrentPage(1); }}
-              className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+              className={`px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                 activeTab === 'process'
                   ? 'bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-black font-extrabold shadow-[0_0_15px_rgba(245,158,11,0.35)]'
                   : 'bg-transparent text-zinc-400 hover:text-white hover:bg-white/5'
@@ -408,7 +408,7 @@ function OrdersPage({ t, mode, settings = {}, initialSelectedOrderId, onClearSel
 
             <button
               onClick={() => { setActiveTab('completed'); setCurrentPage(1); }}
-              className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+              className={`px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                 activeTab === 'completed'
                   ? 'bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-black font-extrabold shadow-[0_0_15px_rgba(245,158,11,0.35)]'
                   : 'bg-transparent text-zinc-400 hover:text-white hover:bg-white/5'
@@ -420,7 +420,7 @@ function OrdersPage({ t, mode, settings = {}, initialSelectedOrderId, onClearSel
             {counts.cancelled > 0 && (
               <button
                 onClick={() => { setActiveTab('cancelled'); setCurrentPage(1); }}
-                className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+                className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                   activeTab === 'cancelled'
                     ? 'bg-red-500/20 border border-red-500/40 text-red-300 font-bold shadow-md'
                     : 'bg-transparent text-zinc-400 hover:text-white hover:bg-white/5'

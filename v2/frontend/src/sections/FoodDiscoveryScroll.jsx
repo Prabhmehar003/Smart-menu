@@ -236,7 +236,7 @@ export default function FoodDiscoveryScroll() {
     <section
       ref={containerRef}
       id="food-discovery"
-      className="relative w-full h-[100svh] min-h-[720px] bg-[#050508] border-y border-white/5 overflow-hidden select-none"
+      className="relative w-full h-[100svh] min-h-[620px] sm:min-h-[720px] bg-[#050508] border-y border-white/5 overflow-hidden select-none"
     >
       {/* Background Ambience */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_45%,rgba(245,158,11,0.12),transparent_35%),linear-gradient(180deg,#050508_0%,#090a0f_100%)] pointer-events-none" />
@@ -244,7 +244,7 @@ export default function FoodDiscoveryScroll() {
       {/* Main Section Content Wrapper (Controls blur & scale focus pull) */}
       <div
         ref={sectionContentRef}
-        className="relative z-10 w-full h-full flex flex-col justify-center px-6 will-change-[transform,opacity,filter]"
+        className="relative z-10 w-full h-full flex flex-col justify-center px-4 sm:px-6 will-change-[transform,opacity,filter]"
       >
         {/* Floating Editorial Accent Card A: Sommelier pairing note */}
         <div
@@ -277,15 +277,15 @@ export default function FoodDiscoveryScroll() {
         {/* Section Header */}
         <div
           ref={headingRef}
-          className="max-w-7xl mx-auto w-full mb-8 md:mb-12 will-change-[transform,opacity,filter]"
+          className="max-w-7xl mx-auto w-full mb-6 sm:mb-8 md:mb-12 will-change-[transform,opacity,filter]"
         >
           <div className="flex items-end justify-between gap-6">
             <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-400 text-[10px] font-mono tracking-[0.22em] uppercase">
+              <div className="inline-flex items-center gap-2 px-3 py-1 sm:py-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-400 text-[10px] font-mono tracking-[0.22em] uppercase">
                 <Flame className="w-3.5 h-3.5" />
                 <span>Curated for your table</span>
               </div>
-              <h2 className="mt-4 max-w-2xl text-4xl sm:text-5xl md:text-6xl font-extrabold font-display uppercase leading-[0.92] tracking-tight text-white">
+              <h2 className="mt-3 sm:mt-4 max-w-2xl text-3xl sm:text-5xl md:text-6xl font-extrabold font-display uppercase leading-[0.95] sm:leading-[0.92] tracking-tight text-white">
                 A menu worth <span className="text-amber-400">exploring.</span>
               </h2>
             </div>
@@ -298,15 +298,15 @@ export default function FoodDiscoveryScroll() {
         {/* Pinned Floating Editorial Dishes Track */}
         <div
           ref={railRef}
-          className="relative flex w-max gap-6 md:gap-8 pl-[4vw] will-change-transform"
+          className="relative flex w-max gap-4 sm:gap-6 md:gap-8 pl-[2vw] sm:pl-[4vw] will-change-transform"
         >
           {DISHES.map((dish, index) => (
             <article
               key={dish.name}
               ref={(el) => (dishCardRefs.current[index] = el)}
-              className="group relative w-[min(76vw,370px)] overflow-hidden rounded-[30px] border border-white/15 bg-[#0f1118] shadow-2xl shadow-black/80 will-change-[transform,opacity,filter] transition-shadow duration-500 hover:shadow-amber-500/10 hover:border-amber-400/40"
+              className="group relative w-[min(82vw,360px)] shrink-0 overflow-hidden rounded-[22px] sm:rounded-[30px] border border-white/15 bg-[#0f1118] shadow-2xl shadow-black/80 will-change-[transform,opacity,filter] transition-shadow duration-500 hover:shadow-amber-500/10 hover:border-amber-400/40"
             >
-              <div className="relative h-[46vh] min-h-[300px] max-h-[440px] overflow-hidden">
+              <div className="relative h-[38vh] sm:h-[46vh] min-h-[250px] sm:min-h-[300px] max-h-[440px] overflow-hidden">
                 <img
                   src={dish.image}
                   alt={dish.name}
@@ -316,37 +316,37 @@ export default function FoodDiscoveryScroll() {
                 <div className="absolute inset-0 bg-gradient-to-t from-[#0b0c12] via-[#0b0c12]/20 to-transparent" />
 
                 {/* Star Badge */}
-                <div className="absolute top-5 left-5 flex items-center gap-1.5 rounded-full border border-amber-400/40 bg-black/60 px-3 py-1.5 text-[10px] font-mono font-bold tracking-wider text-amber-300 backdrop-blur-md">
+                <div className="absolute top-4 left-4 sm:top-5 sm:left-5 flex items-center gap-1.5 rounded-full border border-amber-400/40 bg-black/60 px-2.5 py-1 sm:px-3 sm:py-1.5 text-[10px] font-mono font-bold tracking-wider text-amber-300 backdrop-blur-md">
                   <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
                   4.9
                 </div>
 
                 {/* Ingredient Tag */}
-                <span className="absolute top-5 right-5 text-[10px] font-mono text-white/70 bg-black/50 border border-white/10 px-2.5 py-1 rounded-full backdrop-blur-md">
+                <span className="absolute top-4 right-4 sm:top-5 sm:right-5 text-[9px] sm:text-[10px] font-mono text-white/70 bg-black/50 border border-white/10 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full backdrop-blur-md">
                   {dish.tag}
                 </span>
 
                 {/* Course Number */}
-                <span className="absolute right-5 bottom-4 text-3xl font-extrabold font-mono text-white/10 select-none">
+                <span className="absolute right-4 bottom-3 sm:right-5 sm:bottom-4 text-2xl sm:text-3xl font-extrabold font-mono text-white/10 select-none">
                   0{index + 1}
                 </span>
               </div>
 
-              <div className="absolute inset-x-0 bottom-0 p-6">
+              <div className="absolute inset-x-0 bottom-0 p-4 sm:p-6">
                 <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-amber-400 font-semibold">
                   {dish.category}
                 </p>
-                <div className="mt-2 flex items-end justify-between gap-4">
-                  <h3 className="text-2xl font-bold font-display text-white group-hover:text-amber-300 transition-colors">
+                <div className="mt-1.5 sm:mt-2 flex items-end justify-between gap-3 sm:gap-4">
+                  <h3 className="text-lg sm:text-2xl font-bold font-display text-white group-hover:text-amber-300 transition-colors">
                     {dish.name}
                   </h3>
-                  <span className="shrink-0 text-xl font-extrabold font-mono text-amber-400">
+                  <span className="shrink-0 text-lg sm:text-xl font-extrabold font-mono text-amber-400">
                     {dish.price}
                   </span>
                 </div>
               </div>
 
-              <div className="absolute right-5 bottom-24 flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-black/40 text-white opacity-0 backdrop-blur-md transition-opacity duration-300 group-hover:opacity-100">
+              <div className="absolute right-4 sm:right-5 bottom-20 sm:bottom-24 flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-full border border-white/20 bg-black/40 text-white opacity-0 backdrop-blur-md transition-opacity duration-300 group-hover:opacity-100">
                 <ArrowUpRight className="h-4 w-4" />
               </div>
             </article>

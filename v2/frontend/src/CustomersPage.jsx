@@ -223,7 +223,7 @@ function CustomersPage({ t, mode, settings = {} }) {
       </div>
 
       {/* Main Page Content Layer */}
-      <div className="relative z-10 w-full min-h-screen font-sans px-4 sm:px-8 lg:px-12 py-8 pb-28 max-w-[1700px] mx-auto select-none antialiased">
+      <div className="relative z-10 w-full min-h-screen font-sans px-3 sm:px-8 lg:px-12 py-6 sm:py-8 pb-28 max-w-[1700px] mx-auto select-none antialiased">
 
         {/* Top Header Section */}
         <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
