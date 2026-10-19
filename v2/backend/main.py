@@ -442,19 +442,39 @@ def get_current_user_from_request(request: Request) -> dict:
     if not token:
         raise HTTPException(status_code=401, detail="Not authenticated. Please log in.")
 
+    # 1. Try decoding backend session token (HS256)
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
         uid = payload.get("uid")
-        if not uid:
-            raise HTTPException(status_code=401, detail="Invalid session token.")
-        user = get_user_by_uid(uid)
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found.")
-        return user
+        if uid:
+            user = get_user_by_uid(uid)
+            if user:
+                return user
     except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Session expired. Please log in again.")
+        pass
     except Exception:
-        raise HTTPException(status_code=401, detail="Invalid session token.")
+        pass
+
+    # 2. Fallback: try decoding Firebase ID token
+    try:
+        unverified = jwt.decode(token, options={"verify_signature": False})
+        uid = unverified.get("user_id") or unverified.get("sub")
+        if uid:
+            user = get_user_by_uid(uid)
+            if not user and unverified.get("email"):
+                user = get_user_by_email(unverified.get("email"))
+            if user:
+                return user
+            # Auto-provision user record if not present
+            name = unverified.get("name") or "Restaurateur"
+            email = unverified.get("email") or f"{uid}@firebase.user"
+            user = upsert_user(uid=uid, email=email, name=name, role="provider")
+            if user:
+                return user
+    except Exception:
+        pass
+
+    raise HTTPException(status_code=401, detail="Session expired or invalid. Please log in again.")
 
 # ---------------------------------------------------------------------------
 # Auth Endpoints

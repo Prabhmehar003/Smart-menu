@@ -16,6 +16,25 @@ const BASE = API_ROOT ? `${API_ROOT}/api` : "/api";
 const inflightRequests = new Map();
 const recentGetCache = new Map();
 
+export async function getAuthToken() {
+  let token = typeof localStorage !== "undefined" ? localStorage.getItem("acid_token") : null;
+  if (!token && typeof localStorage !== "undefined") {
+    try {
+      const sess = JSON.parse(localStorage.getItem("acid_session") || "{}");
+      if (sess?.token) token = sess.token;
+    } catch (_) {}
+  }
+  if (!token && typeof window !== "undefined") {
+    try {
+      const { auth } = await import("./lib/firebase");
+      if (auth?.currentUser) {
+        token = await auth.currentUser.getIdToken();
+      }
+    } catch (_) {}
+  }
+  return token;
+}
+
 /**
  * Core fetch helper with in-flight deduplication and short TTL caching for GETs.
  * @param {string} path      - Path relative to BASE (e.g. '/orders')
@@ -43,7 +62,7 @@ async function request(path, opts = {}) {
 
   const fetchPromise = (async () => {
     try {
-      const token = typeof localStorage !== "undefined" ? localStorage.getItem("acid_token") : null;
+      const token = await getAuthToken();
       const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
       const res = await fetch(url, {
         credentials: "include",
@@ -182,4 +201,73 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+
+  // ── Menu Upload & AI Processing ─────────────────────────────────────
+  processMenu: async (formData) => {
+    let token = await getAuthToken();
+    const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+
+    const endpoints = [
+      `${BASE}/process-menu`,
+      ...(BASE !== "/api" ? ["/api/process-menu"] : []),
+    ];
+
+    let lastError = null;
+    for (const targetUrl of endpoints) {
+      try {
+        const res = await fetch(targetUrl, {
+          method: "POST",
+          body: formData,
+          credentials: "include",
+          headers: {
+            ...authHeaders,
+          },
+        });
+
+        // If 401, try to refresh token via Firebase if available and retry once
+        if (res.status === 401 && typeof window !== "undefined") {
+          try {
+            const { auth } = await import("./lib/firebase");
+            if (auth?.currentUser) {
+              const freshIdToken = await auth.currentUser.getIdToken(true);
+              const sessionRes = await fetch(`${BASE}/auth/session`, {
+                method: "POST",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  idToken: freshIdToken,
+                  mode: "signin",
+                  deviceType: "web",
+                  deviceName: navigator.userAgent,
+                }),
+              });
+              if (sessionRes.ok) {
+                const sessionData = await sessionRes.json();
+                if (sessionData.token) {
+                  localStorage.setItem("acid_token", sessionData.token);
+                  const retryRes = await fetch(targetUrl, {
+                    method: "POST",
+                    body: formData,
+                    credentials: "include",
+                    headers: {
+                      Authorization: `Bearer ${sessionData.token}`,
+                    },
+                  });
+                  return retryRes;
+                }
+              }
+            }
+          } catch (refreshErr) {
+            console.warn("Token refresh attempt failed:", refreshErr);
+          }
+        }
+
+        return res;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+
+    throw lastError || new Error("Could not reach the server.");
+  },
 };

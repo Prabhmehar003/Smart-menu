@@ -1284,11 +1284,11 @@ function TablesPage({ t, mode, settings = {} }) {
 
       let res;
       try {
-        res = await fetch('/api/process-menu', { method: 'POST', body: formData, credentials: 'include' });
-      } catch {
+        res = await api.processMenu(formData);
+      } catch (err) {
         clearTimeout(t1); clearTimeout(t2);
         setLoading(false);
-        setError({ kind: 'network', message: 'Could not reach the server.' });
+        setError({ kind: 'network', message: err.message || 'Could not reach the server.' });
         return;
       }
       clearTimeout(t1); clearTimeout(t2);
