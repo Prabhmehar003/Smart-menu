@@ -36,7 +36,7 @@ SECRET_KEY = os.environ.get(
 
 _groq_key = os.environ.get("GROQ_API_KEY")
 client = Groq(api_key=_groq_key) if _groq_key else None
-UNSPLASH_ACCESS_KEY = os.environ.get("UNSPLASH_ACCESS_KEY")
+UNSPLASH_ACCESS_KEY = os.environ.get("UNSPLASH_ACCESS_KEY") or "vcbKY4KAfaLUO7PRGtKMyZEODdDmsepLON-pBn9RZ7I"
 
 # ---------------------------------------------------------------------------
 # Firebase Admin Initialization
@@ -197,39 +197,99 @@ def calculate_distance(lat1, lon1, lat2, lon2):
 
 
 # ---------------------------------------------------------------------------
-# Image sourcing
+# Image sourcing (Unsplash -> Wikipedia Commons -> Pollinations AI fallback)
 # ---------------------------------------------------------------------------
+
+def clean_dish_name(name: str) -> str:
+    cleaned = re.sub(r"\([^)]*\)", "", name or "")
+    cleaned = re.sub(
+        r"\b(spl|spl\.|special|veg|veg\.|non-veg|non-veg\.|family|best|hot|cold|fresh|signature)\b",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(r"[^a-zA-Z\s]", " ", cleaned)
+    res = " ".join(cleaned.split()).strip()
+    return res if res else (name or "").strip()
 
 async def fetch_scraped_image(dish_name: str) -> str | None:
     if not UNSPLASH_ACCESS_KEY:
         return None
-    cache_key = f"{dish_name} food dish".lower().strip()
+    clean = clean_dish_name(dish_name)
+    cache_key = f"unsplash_{clean.lower()}"
     if cache_key in IMAGE_CACHE:
         return IMAGE_CACHE[cache_key]
     try:
-        async with httpx.AsyncClient(timeout=8.0) as http:
+        async with httpx.AsyncClient(timeout=4.0) as http:
             r = await http.get(
                 "https://api.unsplash.com/search/photos",
-                params={"query": cache_key, "per_page": 1, "orientation": "squarish"},
+                params={"query": f"{clean} food dish", "per_page": 1, "orientation": "squarish"},
                 headers={"Authorization": f"Client-ID {UNSPLASH_ACCESS_KEY}"},
             )
-        if r.status_code != 200:
-            return None
-        results = r.json().get("results", [])
-        if not results:
-            return None
-        url = results[0]["urls"]["regular"]
-        IMAGE_CACHE[cache_key] = url
-        return url
+        if r.status_code == 200:
+            results = r.json().get("results", [])
+            if results and results[0].get("urls", {}).get("regular"):
+                url = results[0]["urls"]["regular"]
+                IMAGE_CACHE[cache_key] = url
+                return url
     except Exception:
-        return None
-
-async def fetch_generated_image(dish_name: str, description: str = "") -> str | None:
+        pass
     return None
 
+async def fetch_wikipedia_image(dish_name: str) -> str | None:
+    clean = clean_dish_name(dish_name)
+    cache_key = f"wiki_{clean.lower()}"
+    if cache_key in IMAGE_CACHE:
+        return IMAGE_CACHE[cache_key]
+    try:
+        async with httpx.AsyncClient(timeout=4.0) as client:
+            r = await client.get(
+                "https://en.wikipedia.org/w/api.php",
+                params={
+                    "action": "query",
+                    "titles": clean,
+                    "prop": "pageimages",
+                    "format": "json",
+                    "pithumbsize": 800,
+                },
+            )
+        if r.status_code == 200:
+            pages = r.json().get("query", {}).get("pages", {})
+            for p in pages.values():
+                if "thumbnail" in p and p["thumbnail"].get("source"):
+                    url = p["thumbnail"]["source"]
+                    IMAGE_CACHE[cache_key] = url
+                    return url
+    except Exception:
+        pass
+    return None
+
+async def fetch_generated_image(dish_name: str, description: str = "") -> str | None:
+    clean = clean_dish_name(dish_name)
+    if not clean:
+        clean = "gourmet restaurant food dish"
+    import urllib.parse
+    prompt_str = f"gourmet {clean} plated food photography restaurant dining studio lighting 4k"
+    encoded = urllib.parse.quote(prompt_str)
+    return f"https://image.pollinations.ai/prompt/{encoded}?width=800&height=600&nologo=true"
+
 async def resolve_dish_image(dish_name: str, description: str = "") -> str | None:
-    url = await fetch_scraped_image(dish_name)
-    return url or await fetch_generated_image(dish_name, description)
+    dish_clean = (dish_name or "").strip()
+    if not dish_clean:
+        return None
+    cache_key = dish_clean.lower()
+    if cache_key in IMAGE_CACHE:
+        return IMAGE_CACHE[cache_key]
+
+    url = await fetch_scraped_image(dish_clean)
+    if not url:
+        url = await fetch_wikipedia_image(dish_clean)
+    if not url:
+        url = await fetch_generated_image(dish_clean, description)
+
+    if url:
+        IMAGE_CACHE[cache_key] = url
+    return url
 
 async def enrich_menu_with_images(menu_data: dict) -> None:
     flat_items, tasks = [], []
@@ -243,7 +303,10 @@ async def enrich_menu_with_images(menu_data: dict) -> None:
         return
     resolved = await asyncio.gather(*tasks, return_exceptions=True)
     for item, url in zip(flat_items, resolved):
-        item["image_url"] = url if isinstance(url, str) else None
+        if isinstance(url, str) and url.startswith("http"):
+            item["image_url"] = url
+        else:
+            item["image_url"] = await fetch_generated_image(item.get("name", ""))
 
 
 # ---------------------------------------------------------------------------
@@ -287,6 +350,9 @@ class SettingsUpdate(BaseModel):
     restaurant_name: str | None = None
     lat: float | None = None
     lon: float | None = None
+    geofence_enabled: bool | None = None
+    geofence_radius: float | None = None
+    clear_geofence: bool | None = None
     default_theme: str | None = None
     currency: str | None = None
     tax_rate: float | None = None
@@ -647,11 +713,16 @@ def _build_user_settings_response(user: dict | None, latest_menu: dict | None) -
     sc = user.get("service_charge") if user else 0.0
     lat = user.get("lat") if user and user.get("lat") is not None else (latest_menu["lat"] if latest_menu else None)
     lon = user.get("lon") if user and user.get("lon") is not None else (latest_menu["lon"] if latest_menu else None)
+    geofence_val = _get_setting_val("geofence_enabled")
+    geofence_enabled = geofence_val is not None and geofence_val.lower() in ("true", "1", "yes")
+    geofence_radius = float(_get_setting_val("geofence_radius") or 1000)
 
     return {
         "restaurant_name": (user.get("restaurant_name") if user else None) or (latest_menu["restaurant_name"] if latest_menu else "Smart Menu"),
         "lat": float(lat) if lat is not None else None,
         "lon": float(lon) if lon is not None else None,
+        "geofence_enabled": geofence_enabled,
+        "geofence_radius": geofence_radius,
         "menu_id": latest_menu["menu_id"] if latest_menu else None,
         "default_theme": (user.get("default_theme") if user else None) or "amber-gold",
         "currency": (user.get("currency") if user else None) or "USD",
@@ -746,8 +817,8 @@ async def process_menu(
 
     try:
         await enrich_menu_with_images(menu_data)
-    except Exception:
-        pass 
+    except Exception as img_err:
+        logger.warning("Could not enrich menu with images: %s", img_err)
 
     menu_id = str(uuid.uuid4())[:8]
     table_qrs = []
@@ -757,12 +828,17 @@ async def process_menu(
     menu_data["restaurant_name"] = rest_name
     user_plan = (user.get("plan") or _get_setting_val("plan") or "basic").lower()
 
+    geofence_setting = _get_setting_val("geofence_enabled")
+    is_geofence_enabled = geofence_setting is not None and geofence_setting.lower() in ("true", "1", "yes")
+    saved_lat = admin_lat if is_geofence_enabled else None
+    saved_lon = admin_lon if is_geofence_enabled else None
+
     with db_cursor(commit=True) as cur:
         cur.execute(
             "INSERT INTO menus (menu_id, user_id, restaurant_name, data_json, lat, lon, plan) "
             "VALUES (%s, %s, %s, %s, %s, %s, %s)",
             (menu_id, user["uid"], rest_name, json.dumps(menu_data),
-             admin_lat, admin_lon, user_plan),
+             saved_lat, saved_lon, user_plan),
         )
         # Service Window / Counter QR code
         counter_code = secrets.token_hex(3)
@@ -1060,19 +1136,22 @@ async def resolve_table_proxy(req: ResolveTableRequest, request: Request):
     if not row:
         raise HTTPException(status_code=404, detail="TABLE NOT FOUND OR EXPIRED LINK")
 
-    # Geofence proximity check if coordinates configured
-    if (
-        req.lat is not None
-        and req.lon is not None
-        and row["lat"] is not None
-        and row["lon"] is not None
-    ):
-        dist = calculate_distance(row["lat"], row["lon"], req.lat, req.lon)
-        if dist > 200:
-            raise HTTPException(
-                status_code=403,
-                detail="PROXIMITY FAILED. YOU ARE NOT AT THE RESTAURANT.",
-            )
+    # Geofence proximity check ONLY if explicitly enabled
+    geofence_val = _get_setting_val("geofence_enabled")
+    if geofence_val and geofence_val.lower() in ("true", "1", "yes"):
+        radius_setting = float(_get_setting_val("geofence_radius") or 1000)
+        if (
+            req.lat is not None
+            and req.lon is not None
+            and row.get("lat") is not None
+            and row.get("lon") is not None
+        ):
+            dist = calculate_distance(row["lat"], row["lon"], req.lat, req.lon)
+            if dist > radius_setting:
+                raise HTTPException(
+                    status_code=403,
+                    detail="PROXIMITY FAILED. YOU ARE NOT AT THE RESTAURANT.",
+                )
 
     # Log scan tracking in table_scans
     try:
@@ -1161,20 +1240,23 @@ async def verify_scan(req: VerifyRequest, request: Request):
     if not menu_row:
         raise HTTPException(status_code=404, detail="MENU NOT FOUND")
 
-    if (
-        req.lat is not None
-        and req.lon is not None
-        and menu_row["lat"] is not None
-        and menu_row["lon"] is not None
-    ):
-        dist = calculate_distance(
-            menu_row["lat"], menu_row["lon"], req.lat, req.lon
-        )
-        if dist > 200:
-            raise HTTPException(
-                status_code=403,
-                detail="PROXIMITY FAILED. YOU ARE NOT AT THE RESTAURANT.",
+    geofence_val = _get_setting_val("geofence_enabled")
+    if geofence_val and geofence_val.lower() in ("true", "1", "yes"):
+        radius_setting = float(_get_setting_val("geofence_radius") or 1000)
+        if (
+            req.lat is not None
+            and req.lon is not None
+            and menu_row.get("lat") is not None
+            and menu_row.get("lon") is not None
+        ):
+            dist = calculate_distance(
+                menu_row["lat"], menu_row["lon"], req.lat, req.lon
             )
+            if dist > radius_setting:
+                raise HTTPException(
+                    status_code=403,
+                    detail="PROXIMITY FAILED. YOU ARE NOT AT THE RESTAURANT.",
+                )
 
     # Log scan tracking in table_scans
     try:
@@ -1733,9 +1815,18 @@ async def update_settings(update: SettingsUpdate, request: Request):
     if update.tax_rate is not None: profile_update["tax_rate"] = update.tax_rate
     if update.service_charge is not None: profile_update["service_charge"] = update.service_charge
     if update.plan is not None: profile_update["plan"] = update.plan
-    if update.lat is not None: profile_update["lat"] = update.lat
-    if update.lon is not None: profile_update["lon"] = update.lon
+    if update.clear_geofence:
+        profile_update["lat"] = None
+        profile_update["lon"] = None
+    else:
+        if update.lat is not None: profile_update["lat"] = update.lat
+        if update.lon is not None: profile_update["lon"] = update.lon
     if update.default_theme is not None: profile_update["default_theme"] = update.default_theme
+
+    if update.geofence_enabled is not None:
+        _set_setting_val("geofence_enabled", "true" if update.geofence_enabled else "false")
+    if update.geofence_radius is not None:
+        _set_setting_val("geofence_radius", str(update.geofence_radius))
 
     if uid and profile_update:
         user = update_user_profile(uid, profile_update) or user
@@ -1764,7 +1855,14 @@ async def update_settings(update: SettingsUpdate, request: Request):
         else:
             cur.execute("SELECT menu_id FROM menus ORDER BY created_at DESC LIMIT 1")
         latest_menu = row_to_dict(cur.fetchone())
-        if latest_menu and (update.restaurant_name is not None or update.lat is not None or update.lon is not None):
+
+        if update.clear_geofence and latest_menu:
+            cur.execute("UPDATE menus SET lat = NULL, lon = NULL WHERE menu_id = %s", (latest_menu["menu_id"],))
+            if uid:
+                cur.execute("UPDATE menus SET lat = NULL, lon = NULL WHERE user_id = %s", (uid,))
+            cur.execute("SELECT menu_id, restaurant_name, lat, lon FROM menus WHERE menu_id = %s", (latest_menu["menu_id"],))
+            latest_menu = row_to_dict(cur.fetchone())
+        elif latest_menu and (update.restaurant_name is not None or update.lat is not None or update.lon is not None):
             cur.execute(
                 """UPDATE menus SET 
                    restaurant_name = COALESCE(%s, restaurant_name),

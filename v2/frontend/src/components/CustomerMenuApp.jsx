@@ -25,20 +25,42 @@ const ORDER_STATUS_META = {
   cancelled:   { label: 'Cancelled',       color: '#FF3B3B', border: 'border-[#FF3B3B]/40', bg: 'bg-[#FF3B3B]/15' },
 };
 
+export function getReliableDishImage(dishName, categoryName) {
+  const clean = (dishName || 'Gourmet Food')
+    .replace(/\([^)]*\)/g, '')
+    .replace(/\b(spl|spl\.|special|veg|veg\.|non-veg|non-veg\.|family|best|hot|cold)\b/gi, '')
+    .trim();
+  const prompt = `delicious ${clean || 'plated food'} gourmet dish culinary restaurant photography studio lighting`;
+  return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=800&height=600&nologo=true`;
+}
+
 function DishImage({ item, theme, accent }) {
-  const [errored, setErrored] = useState(false);
-  const showFallback = !item.image_url || errored;
-  const grad = MENU_THEMES[theme]?.gradient || MENU_THEMES['acid-lime'].gradient;
+  const fallbackUrl = useMemo(() => getReliableDishImage(item.name, item.category), [item.name, item.category]);
+  const [imgSrc, setImgSrc] = useState(() => item.image_url || fallbackUrl);
+  const [hasFailed, setHasFailed] = useState(false);
+
+  useEffect(() => {
+    setImgSrc(item.image_url || fallbackUrl);
+    setHasFailed(false);
+  }, [item.image_url, fallbackUrl]);
+
+  const handleError = () => {
+    if (!hasFailed && imgSrc !== fallbackUrl) {
+      setHasFailed(true);
+      setImgSrc(fallbackUrl);
+    }
+  };
+
   return (
-    <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden">
-      {showFallback ? (
-        <div className={`w-full h-full bg-gradient-to-br ${grad} bg-[#0a0a0a] flex items-center justify-center`}>
-          <ImageOff className="w-6 h-6 text-white/15" />
-        </div>
-      ) : (
-        <img src={item.image_url} alt={item.name} onError={() => setErrored(true)} loading="lazy" className="w-full h-full object-cover" />
-      )}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/0 to-transparent" />
+    <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden bg-[#0a0a0a]">
+      <img
+        src={imgSrc}
+        alt={item.name}
+        onError={handleError}
+        loading="lazy"
+        className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
       {item.tags?.includes('popular') && (
         <span style={{ backgroundColor: accent }} className="absolute top-2 left-2 text-black text-[9px] font-mono font-black px-2 py-1 rounded-full flex items-center gap-1 shadow-md">
           <Star size={9} fill="black" /> POPULAR
@@ -746,13 +768,14 @@ function CustomerMenuApp({ session, settings = {} }) {
                   cartItemsArray.map((item, idx) => (
                     <div key={idx} className="flex items-center gap-3 bg-white/[0.04] p-3 rounded-2xl border border-white/5">
                       <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-white/5">
-                        {item.image_url ? (
-                          <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <ImageOff className="w-4 h-4 text-white/15" />
-                          </div>
-                        )}
+                        <img
+                          src={item.image_url || getReliableDishImage(item.name)}
+                          alt={item.name}
+                          onError={(e) => {
+                            e.currentTarget.src = getReliableDishImage(item.name);
+                          }}
+                          className="w-full h-full object-cover"
+                        />
                       </div>
                       <div className="flex-1 min-w-0">
                         <h4 className="font-bold text-sm truncate">{item.name}</h4>

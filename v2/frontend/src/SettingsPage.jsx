@@ -58,6 +58,8 @@ function SettingsPage({ t, onSaved, onThemeChange }) {
       restaurant_name: '',
       lat: '',
       lon: '',
+      geofence_enabled: false,
+      geofence_radius: '1000',
       default_theme: 'amber-gold',
       currency: 'USD',
       tax_rate: '',
@@ -95,6 +97,8 @@ function SettingsPage({ t, onSaved, onThemeChange }) {
           restaurant_name: data.restaurant_name || '',
           lat:             data.lat  != null ? String(data.lat)  : '',
           lon:             data.lon  != null ? String(data.lon)  : '',
+          geofence_enabled: Boolean(data.geofence_enabled),
+          geofence_radius:  data.geofence_radius != null ? String(data.geofence_radius) : '1000',
           default_theme:   data.default_theme   || 'amber-gold',
           currency:        data.currency        || 'USD',
           tax_rate:        data.tax_rate        != null ? String(data.tax_rate)        : '',
@@ -164,6 +168,10 @@ function SettingsPage({ t, onSaved, onThemeChange }) {
     );
   };
 
+  const handleClearGeofence = () => {
+    setForm((f) => ({ ...f, lat: '', lon: '', geofence_enabled: false }));
+  };
+
   const handleSave = async (e) => {
     e.preventDefault();
     setSaveStatus('saving');
@@ -171,8 +179,14 @@ function SettingsPage({ t, onSaved, onThemeChange }) {
     try {
       const payload = {};
       if (form.restaurant_name) payload.restaurant_name = form.restaurant_name;
-      if (form.lat !== '')           payload.lat            = parseFloat(form.lat);
-      if (form.lon !== '')           payload.lon            = parseFloat(form.lon);
+      payload.geofence_enabled = Boolean(form.geofence_enabled);
+      payload.geofence_radius = parseFloat(form.geofence_radius) || 1000;
+      if (!form.geofence_enabled || (form.lat === '' && form.lon === '')) {
+        payload.clear_geofence = true;
+      } else {
+        if (form.lat !== '') payload.lat = parseFloat(form.lat);
+        if (form.lon !== '') payload.lon = parseFloat(form.lon);
+      }
       if (form.default_theme)        payload.default_theme  = form.default_theme;
       if (form.currency)             payload.currency       = form.currency;
       if (form.tax_rate !== '')      payload.tax_rate       = parseFloat(form.tax_rate);
@@ -507,44 +521,91 @@ function SettingsPage({ t, onSaved, onThemeChange }) {
 
           {/* ── Geofence ───────────────────────────────────────────── */}
           <section>
-            <h3 className="font-mono text-[11px] uppercase tracking-widest mb-4 text-zinc-400 font-bold flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" /> Geofence
-            </h3>
-            <div>
-              <div className="flex items-center justify-between">
-                <FieldLabel>LOCATION (LAT / LON)</FieldLabel>
-                <button
-                  type="button"
-                  onClick={handleUseCurrentLocation}
-                  disabled={locating}
-                  className="font-mono text-[11px] font-bold flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-white/10 bg-white/5 text-zinc-300 hover:border-amber-400/40 hover:text-amber-400 transition-all disabled:opacity-50"
-                >
-                  {locating
-                    ? <><RefreshCw size={11} className="animate-spin text-amber-400" /> Locating...</>
-                    : <><Crosshair size={11} className="text-amber-400" /> Use current location</>}
-                </button>
-              </div>
-              <p className="font-mono text-[11px] mt-2 mb-3 text-zinc-400">
-                Guests must scan within 200 m of this point or their QR is rejected.
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="relative">
-                  <MapPin size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" />
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-mono text-[11px] uppercase tracking-widest text-zinc-400 font-bold flex items-center gap-2">
+                <span className={`w-1.5 h-1.5 rounded-full ${form.geofence_enabled ? 'bg-amber-400' : 'bg-zinc-600'}`} /> Geofence Verification
+              </h3>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={Boolean(form.geofence_enabled)}
+                  onChange={(e) => setForm((f) => ({ ...f, geofence_enabled: e.target.checked }))}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-400"></div>
+              </label>
+            </div>
+
+            {form.geofence_enabled ? (
+              <div className="space-y-4">
+                <p className="font-mono text-[11px] text-zinc-400 leading-relaxed">
+                  Guests must scan within the specified distance of your restaurant GPS coordinates, or their scan will be rejected.
+                </p>
+                <div className="flex items-center justify-between">
+                  <FieldLabel>RESTAURANT LOCATION (LAT / LON)</FieldLabel>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleUseCurrentLocation}
+                      disabled={locating}
+                      className="font-mono text-[11px] font-bold flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-white/10 bg-white/5 text-zinc-300 hover:border-amber-400/40 hover:text-amber-400 transition-all disabled:opacity-50"
+                    >
+                      {locating
+                        ? <><RefreshCw size={11} className="animate-spin text-amber-400" /> Locating...</>
+                        : <><Crosshair size={11} className="text-amber-400" /> Use current location</>}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleClearGeofence}
+                      className="font-mono text-[11px] font-bold px-3 py-1.5 rounded-full border border-rose-500/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 transition-all"
+                    >
+                      Reset GPS
+                    </button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="relative">
+                    <MapPin size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" />
+                    <input
+                      type="number" step="any"
+                      value={form.lat} onChange={set('lat')}
+                      placeholder="Latitude"
+                      className="w-full border border-white/10 bg-[#05070a]/90 p-4 pl-10 rounded-xl font-mono text-sm text-white placeholder-zinc-500 outline-none focus:border-amber-400/60 focus:ring-1 focus:ring-amber-400/30 transition-all shadow-inner"
+                    />
+                  </div>
                   <input
                     type="number" step="any"
-                    value={form.lat} onChange={set('lat')}
-                    placeholder="Latitude"
-                    className="w-full border border-white/10 bg-[#05070a]/90 p-4 pl-10 rounded-xl font-mono text-sm text-white placeholder-zinc-500 outline-none focus:border-amber-400/60 focus:ring-1 focus:ring-amber-400/30 transition-all shadow-inner"
+                    value={form.lon} onChange={set('lon')}
+                    placeholder="Longitude"
+                    className="w-full border border-white/10 bg-[#05070a]/90 p-4 rounded-xl font-mono text-sm text-white placeholder-zinc-500 outline-none focus:border-amber-400/60 focus:ring-1 focus:ring-amber-400/30 transition-all shadow-inner"
                   />
                 </div>
-                <input
-                  type="number" step="any"
-                  value={form.lon} onChange={set('lon')}
-                  placeholder="Longitude"
-                  className="w-full border border-white/10 bg-[#05070a]/90 p-4 rounded-xl font-mono text-sm text-white placeholder-zinc-500 outline-none focus:border-amber-400/60 focus:ring-1 focus:ring-amber-400/30 transition-all shadow-inner"
-                />
+                <div>
+                  <FieldLabel>ALLOWED RADIUS (METERS)</FieldLabel>
+                  <input
+                    type="number"
+                    min="50"
+                    step="50"
+                    value={form.geofence_radius}
+                    onChange={set('geofence_radius')}
+                    placeholder="e.g. 1000"
+                    className="w-full mt-1 border border-white/10 bg-[#05070a]/90 p-4 rounded-xl font-mono text-sm text-white placeholder-zinc-500 outline-none focus:border-amber-400/60 focus:ring-1 focus:ring-amber-400/30 transition-all shadow-inner"
+                  />
+                  <span className="text-[10px] text-zinc-500 font-mono mt-1 block">
+                    Recommended: 1000 m (1 km) to prevent false rejections from cell tower inaccuracies and indoor GPS drift.
+                  </span>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4 text-left">
+                <p className="font-mono text-xs text-amber-400 font-bold mb-1">
+                  Geofence Check: Disabled (Recommended)
+                </p>
+                <p className="font-mono text-[11px] text-zinc-400 leading-relaxed">
+                  Anyone scanning the table QR code can freely browse the digital menu and order without location or distance verification errors.
+                </p>
+              </div>
+            )}
           </section>
 
           {/* ── Active menu info ────────────────────────────────────── */}

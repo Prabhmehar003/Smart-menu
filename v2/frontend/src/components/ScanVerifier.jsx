@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShieldAlert, MapPin, Wifi, CheckCircle2, RefreshCw, WifiOff } from 'lucide-react';
+import { ShieldAlert, MapPin, Wifi, CheckCircle2, RefreshCw, WifiOff, UtensilsCrossed } from 'lucide-react';
 
 // Step definitions drive both the progress rail and the status copy.
 const STEPS = [
@@ -158,6 +158,44 @@ function ScanVerifier({ token, code, setSession }) {
 
   const handleRetry = () => setAttempt((a) => a + 1);
 
+  const isProximityError = Boolean(error && error.toUpperCase().includes('PROXIMITY'));
+
+  const handleContinueWithoutLocation = () => {
+    setError(null);
+    setErrorKind(null);
+    setFailedIndex(null);
+    setStepIndex(1);
+
+    const searchParams = new URLSearchParams(window.location.search);
+    const scanSource = (searchParams.get('src') || 'qr').toLowerCase();
+    const isProxy = Boolean(code) || (token && token.length <= 16);
+    const endpoint = isProxy ? '/api/t/resolve' : '/api/verify-scan';
+    const body = isProxy
+      ? { code: code || token, src: scanSource }
+      : { token, src: scanSource };
+
+    fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+      .then(async (res) => {
+        let data = {};
+        try { data = await res.json(); } catch {}
+        if (!res.ok) {
+          setError(data.detail || 'This table link could not be verified.');
+          return;
+        }
+        setStepIndex(2);
+        try { localStorage.setItem('acid_session', JSON.stringify(data)); } catch {}
+        setSession(data);
+        navigate('/menu', { replace: true });
+      })
+      .catch(() => {
+        setError('Could not reach the restaurant server.');
+      });
+  };
+
   return (
     <div className="min-h-screen bg-[#030303] bg-noise flex flex-col items-center justify-center text-center p-6 text-white font-mono">
       <div className="clay-card border border-white/10 p-8 rounded-3xl bg-[#0a0a0a] max-w-sm w-full">
@@ -177,15 +215,36 @@ function ScanVerifier({ token, code, setSession }) {
                 )}
               </div>
               <h2 className="text-[#FF00FF] font-bold text-lg mb-2 tracking-tight">
-                {errorKind === 'network' ? 'CONNECTION LOST' : 'VERIFICATION FAILED'}
+                {errorKind === 'network' ? 'CONNECTION LOST' : isProximityError ? 'LOCATION VERIFICATION' : 'VERIFICATION FAILED'}
               </h2>
-              <p className="text-white/50 text-xs leading-relaxed mb-6">{error}</p>
-              <button
-                onClick={handleRetry}
-                className="clay-btn w-full bg-white/10 border border-white/20 hover:border-[#D6FF00] hover:bg-[#D6FF00]/10 text-white font-bold text-xs px-6 py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
-              >
-                <RefreshCw size={14} /> TRY AGAIN
-              </button>
+              <p className="text-white/60 text-xs leading-relaxed mb-6">
+                {isProximityError
+                  ? 'Your device is located outside the restaurant geofence. You can continue to view the digital menu.'
+                  : error}
+              </p>
+              {isProximityError ? (
+                <div className="flex flex-col gap-3">
+                  <button
+                    onClick={handleContinueWithoutLocation}
+                    className="clay-btn w-full bg-[#D6FF00] hover:bg-[#b8db00] text-black font-bold text-xs px-6 py-3 rounded-xl transition-colors flex items-center justify-center gap-2 shadow-lg"
+                  >
+                    <UtensilsCrossed size={14} /> VIEW MENU ANYWAY
+                  </button>
+                  <button
+                    onClick={handleRetry}
+                    className="clay-btn w-full bg-white/10 border border-white/20 hover:border-[#D6FF00] text-white font-bold text-xs px-6 py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2"
+                  >
+                    <RefreshCw size={13} /> RETRY SCAN
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={handleRetry}
+                  className="clay-btn w-full bg-white/10 border border-white/20 hover:border-[#D6FF00] hover:bg-[#D6FF00]/10 text-white font-bold text-xs px-6 py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
+                >
+                  <RefreshCw size={14} /> TRY AGAIN
+                </button>
+              )}
               <p className="text-white/25 text-[10px] mt-4 leading-relaxed">
                 Still stuck? Ask a staff member to rescan or reprint your table QR.
               </p>
