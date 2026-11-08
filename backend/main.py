@@ -51,6 +51,11 @@ MENUS_DB = {}
 ACTIVE_SESSIONS = {}
 ORDERS_DB = []
 
+@app.get("/api/health")
+@app.get("/api/keep-alive")
+async def keep_alive_endpoint():
+    return {"status": "alive", "service": "Smart-menu backend v1", "timestamp": datetime.now().isoformat()}
+
 # NEW: in-memory cache so repeated dish names (across menus, or retries)
 # don't burn image-API quota. Swap for Redis/DB if you need it to survive restarts.
 IMAGE_CACHE = {}

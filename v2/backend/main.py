@@ -6,6 +6,7 @@ import base64
 import re
 import math
 import asyncio
+import logging
 import httpx
 import jwt
 from datetime import datetime, timedelta, date, timezone
@@ -20,6 +21,9 @@ import dotenv
 import firebase_admin
 from firebase_admin import auth as fb_auth, credentials
 from cryptography.x509 import load_pem_x509_certificate
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 from db import (
     init_db, db_cursor, row_to_dict,
@@ -85,6 +89,28 @@ try:
 except Exception as e:
     print(f"Warning: could not initialize database on startup: {e}")
 
+async def _background_db_keepalive():
+    """
+    Background worker that runs every 10 minutes while backend is running.
+    Keeps PostgreSQL connection pool active and registers activity with Supabase
+    so the free-tier 7-day inactivity pause never triggers.
+    """
+    logger.info("Starting internal background DB keepalive worker (10m interval)")
+    while True:
+        try:
+            await asyncio.sleep(600)  # 10 minutes
+            with db_cursor() as cur:
+                cur.execute("SELECT 1;")
+            logger.info("Internal keepalive: Database ping successful")
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.warning("Internal keepalive: Database ping warning: %s", e)
+
+@app.on_event("startup")
+async def on_startup():
+    asyncio.create_task(_background_db_keepalive())
+
 @app.get("/api/health")
 async def health_check():
     db_status = "ok"
@@ -99,7 +125,41 @@ async def health_check():
         "database": db_status,
         "service": "Smart-menu backend",
         "commit": "db-auto-fallback-v2",
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+
+@app.get("/api/keep-alive")
+async def keep_alive():
+    """
+    High-reliability keep-alive endpoint for cron services (GitHub Actions, cron-job.org, UptimeRobot).
+    Executes a direct SQL query against Supabase / PostgreSQL to prevent project pausing
+    and keep Render instances warm.
+    """
+    start_time = datetime.now(timezone.utc)
+    db_status = "ok"
+    db_info = {}
+    try:
+        with db_cursor() as cur:
+            cur.execute("SELECT 1 AS alive, current_database(), current_timestamp;")
+            row = cur.fetchone()
+            if row:
+                if isinstance(row, dict):
+                    db_info["database"] = row.get("current_database")
+                    db_info["db_timestamp"] = str(row.get("current_timestamp"))
+                else:
+                    db_info["database"] = row[1]
+                    db_info["db_timestamp"] = str(row[2])
+    except Exception as e:
+        db_status = f"error: {e}"
+
+    duration_ms = round((datetime.now(timezone.utc) - start_time).total_seconds() * 1000, 2)
+    return {
+        "status": "alive" if db_status == "ok" else "degraded",
+        "database": db_status,
+        "latency_ms": duration_ms,
+        "service": "Smart-menu backend",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        **db_info
     }
 
 # Sessions: in-memory, short-lived (3 hr TTL) backed by PostgreSQL dining_sessions.
