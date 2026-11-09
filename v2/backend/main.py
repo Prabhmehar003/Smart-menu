@@ -798,6 +798,132 @@ def _build_user_settings_response(user: dict | None, latest_menu: dict | None) -
 # Menu upload + QR generation
 # ---------------------------------------------------------------------------
 
+def clean_and_parse_json(content: str) -> dict:
+    """
+    Ultra-resilient JSON parser that handles LLM response quirks:
+    - Reasoning/think tags (<think>...</think>)
+    - Markdown code fences (```json ... ```)
+    - Unescaped internal quotes inside descriptions
+    - Trailing commas before brackets/braces
+    - Missing commas between consecutive objects or keys
+    - Token cutoffs / truncated JSON
+    - Fallback regex extraction of dishes
+    """
+    if not content or not content.strip():
+        raise ValueError("AI model returned an empty response.")
+
+    # 1. Strip reasoning and think tags
+    text = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
+    
+    # 2. Strip markdown fences
+    text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.MULTILINE)
+    text = re.sub(r"\s*```$", "", text, flags=re.MULTILINE).strip()
+
+    # 3. Locate outermost JSON structure
+    start = text.find("{")
+    end = text.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        candidate = text[start:end+1]
+    elif start != -1:
+        candidate = text[start:]
+    else:
+        candidate = text
+
+    # Pass 1: Direct standard parse
+    try:
+        parsed = json.loads(candidate)
+        if isinstance(parsed, dict) and "categories" in parsed:
+            return parsed
+    except Exception:
+        pass
+
+    # Pass 2: Clean trailing commas
+    cleaned = re.sub(r",\s*([\]}])", r"\1", candidate)
+    try:
+        parsed = json.loads(cleaned)
+        if isinstance(parsed, dict) and "categories" in parsed:
+            return parsed
+    except Exception:
+        pass
+
+    # Pass 3: Fix missing commas between objects / arrays
+    cleaned = re.sub(r"}\s*\{", "}, {", cleaned)
+    cleaned = re.sub(r"]\s*\[", "], [", cleaned)
+    try:
+        parsed = json.loads(cleaned)
+        if isinstance(parsed, dict) and "categories" in parsed:
+            return parsed
+    except Exception:
+        pass
+
+    # Pass 4: Fix unescaped internal quotes inside strings (e.g. 12" Pizza)
+    cleaned_quotes = re.sub(r"(?<=[a-zA-Z0-9])\"(?=[a-zA-Z0-9\s])", r"\\\"", cleaned)
+    try:
+        parsed = json.loads(cleaned_quotes)
+        if isinstance(parsed, dict) and "categories" in parsed:
+            return parsed
+    except Exception:
+        pass
+
+    # Pass 5: Handle truncated JSON (balance open braces and brackets)
+    in_quote = False
+    escaped = False
+    for ch in cleaned_quotes:
+        if ch == "\\" and not escaped:
+            escaped = True
+            continue
+        if ch == "\"" and not escaped:
+            in_quote = not in_quote
+        escaped = False
+    
+    balanced = cleaned_quotes
+    if in_quote:
+        balanced += "\""
+    
+    balanced = re.sub(r",\s*$", "", balanced)
+    open_sq = balanced.count("[") - balanced.count("]")
+    open_cu = balanced.count("{") - balanced.count("}")
+    if open_sq > 0:
+        balanced += "]" * open_sq
+    if open_cu > 0:
+        balanced += "}" * open_cu
+    balanced = re.sub(r",\s*([\]}])", r"\1", balanced)
+
+    try:
+        parsed = json.loads(balanced)
+        if isinstance(parsed, dict) and "categories" in parsed:
+            return parsed
+    except Exception:
+        pass
+
+    # Pass 6: Fallback regex extractor for items & categories
+    items = []
+    item_matches = re.finditer(r"\"name\"\s*:\s*\"([^\"]+)\"\s*,\s*\"price\"\s*:\s*([0-9.]+)", candidate)
+    for m in item_matches:
+        name = m.group(1).strip()
+        try:
+            price = float(m.group(2))
+        except Exception:
+            price = 0.0
+        items.append({"name": name, "price": price, "description": "", "tags": ["popular"]})
+    
+    if items:
+        rest_match = re.search(r"\"restaurant_name\"\s*:\s*\"([^\"]+)\"", candidate)
+        rest_name = rest_match.group(1) if rest_match else "Smart Menu"
+        return {
+            "restaurant_name": rest_name,
+            "categories": [
+                {
+                    "category_name": "Main Menu",
+                    "theme": "acid-lime",
+                    "items": items
+                }
+            ]
+        }
+
+    raise ValueError(f"Could not parse valid JSON from AI response: {candidate[:150]}...")
+
+
 @app.post("/api/process-menu")
 async def process_menu(
     request: Request,
@@ -809,70 +935,115 @@ async def process_menu(
     user = get_current_user_from_request(request)
 
     image_bytes = await file.read()
+    mime_type = file.content_type or "image/jpeg"
+
+    # Optimize and resize high-res smartphone photos (>2048px) to reduce payload size and prevent timeouts
+    try:
+        from PIL import Image
+        import io
+        img = Image.open(io.BytesIO(image_bytes))
+        if img.mode in ("RGBA", "P"):
+            img = img.convert("RGB")
+        max_dim = 2048
+        if img.width > max_dim or img.height > max_dim:
+            img.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=85, optimize=True)
+            image_bytes = buf.getvalue()
+            mime_type = "image/jpeg"
+    except Exception as img_prep_err:
+        logger.warning("Image pre-processing notice: %s", img_prep_err)
+
     base64_image = base64.b64encode(image_bytes).decode()
-    mime_type = file.content_type
 
     prompt = """
-    Extract the menu data from this image. Return STRICTLY JSON:
+    Extract the complete menu data from this image.
+    Return STRICTLY valid JSON with this exact schema:
     {
-      "restaurant_name": "Name",
+      "restaurant_name": "Restaurant Name",
       "categories": [
         {
-          "category_name": "Category",
+          "category_name": "Category Name",
           "theme": "acid-lime",
-          "items": [{"name": "Item Name", "price": 10.50,
-                     "description": "Details", "tags": ["spicy", "popular"]}]
+          "items": [
+            {
+              "name": "Item Name",
+              "price": 10.50,
+              "description": "Details without unescaped double quotes",
+              "tags": ["spicy", "popular"]
+            }
+          ]
         }
       ]
     }
-    Rotate themes: "acid-lime", "acid-cyan", "acid-pink". OUTPUT ONLY VALID JSON.
+    Rules:
+    - Rotate themes: "acid-lime", "acid-cyan", "acid-pink".
+    - Do NOT include unescaped double quotes inside description or name.
+    - Do NOT include trailing commas.
+    - OUTPUT STRICTLY VALID JSON.
     """
 
     try:
         if not client:
             raise HTTPException(status_code=500, detail="GROQ_API_KEY is not configured on the server")
         model_name = os.environ.get("GROQ_MODEL", "qwen/qwen3.8-27b")
-        max_tokens_val = int(os.environ.get("GROQ_MAX_TOKENS", "900"))
+        max_tokens_val = int(os.environ.get("GROQ_MAX_TOKENS", "4096"))
 
-        completion = client.chat.completions.create(
-            model=model_name,
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:{mime_type};base64,{base64_image}"
+        # Try with response_format={"type": "json_object"} first for strict grammar constraint
+        try:
+            completion = client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:{mime_type};base64,{base64_image}"
+                                },
                             },
-                        },
-                    ],
-                }
-            ],
-            temperature=0.1,
-            max_tokens=max_tokens_val,
-        )
+                        ],
+                    }
+                ],
+                temperature=0.1,
+                max_tokens=max_tokens_val,
+                response_format={"type": "json_object"},
+            )
+        except Exception as json_format_err:
+            logger.info("Retrying completion without response_format constraint: %s", json_format_err)
+            completion = client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:{mime_type};base64,{base64_image}"
+                                },
+                            },
+                        ],
+                    }
+                ],
+                temperature=0.1,
+                max_tokens=max_tokens_val,
+            )
+
         content = completion.choices[0].message.content or ""
-        raw = re.sub(
-            r"<think>.*?</think>",
-            "",
-            content,
-            flags=re.DOTALL,
-        ).strip()
+        menu_data = clean_and_parse_json(content)
 
-        # Strip markdown code blocks if wrapped in ```json ... ```
-        if raw.startswith("```"):
-            raw = re.sub(r"^```(?:json)?\s*", "", raw)
-            raw = re.sub(r"\s*```$", "", raw)
+        # Ensure minimal required fields exist
+        if not isinstance(menu_data, dict):
+            menu_data = {"restaurant_name": "Smart Menu", "categories": []}
+        if "categories" not in menu_data or not isinstance(menu_data["categories"], list):
+            menu_data["categories"] = []
 
-        start_idx = raw.find("{")
-        end_idx = raw.rfind("}")
-        if start_idx != -1 and end_idx != -1:
-            raw = raw[start_idx : end_idx + 1]
-
-        menu_data = json.loads(raw)
     except Exception as e:
+        logger.error("AI menu parsing failed: %s", e)
         raise HTTPException(status_code=500, detail=f"AI parsing failed: {e}")
 
     try:

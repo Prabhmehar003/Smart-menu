@@ -170,6 +170,71 @@ class OrderRequest(BaseModel):
     notes: str | None = None
     items: list[OrderItem]
 
+def clean_and_parse_json(content: str) -> dict:
+    if not content or not content.strip():
+        raise ValueError("AI model returned an empty response.")
+    text = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
+    text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.MULTILINE)
+    text = re.sub(r"\s*```$", "", text, flags=re.MULTILINE).strip()
+    start = text.find("{")
+    end = text.rfind("}")
+    candidate = text[start:end+1] if (start != -1 and end != -1 and end > start) else (text[start:] if start != -1 else text)
+    try:
+        parsed = json.loads(candidate)
+        if isinstance(parsed, dict) and "categories" in parsed: return parsed
+    except Exception:
+        pass
+    cleaned = re.sub(r",\s*([\]}])", r"\1", candidate)
+    try:
+        parsed = json.loads(cleaned)
+        if isinstance(parsed, dict) and "categories" in parsed: return parsed
+    except Exception:
+        pass
+    cleaned = re.sub(r"}\s*\{", "}, {", cleaned)
+    cleaned = re.sub(r"]\s*\[", "], [", cleaned)
+    try:
+        parsed = json.loads(cleaned)
+        if isinstance(parsed, dict) and "categories" in parsed: return parsed
+    except Exception:
+        pass
+    cleaned_quotes = re.sub(r"(?<=[a-zA-Z0-9])\"(?=[a-zA-Z0-9\s])", r"\\\"", cleaned)
+    try:
+        parsed = json.loads(cleaned_quotes)
+        if isinstance(parsed, dict) and "categories" in parsed: return parsed
+    except Exception:
+        pass
+    in_quote = False
+    escaped = False
+    for ch in cleaned_quotes:
+        if ch == "\\" and not escaped:
+            escaped = True
+            continue
+        if ch == "\"" and not escaped:
+            in_quote = not in_quote
+        escaped = False
+    balanced = cleaned_quotes
+    if in_quote: balanced += "\""
+    balanced = re.sub(r",\s*$", "", balanced)
+    open_sq = balanced.count("[") - balanced.count("]")
+    open_cu = balanced.count("{") - balanced.count("}")
+    if open_sq > 0: balanced += "]" * open_sq
+    if open_cu > 0: balanced += "}" * open_cu
+    balanced = re.sub(r",\s*([\]}])", r"\1", balanced)
+    try:
+        parsed = json.loads(balanced)
+        if isinstance(parsed, dict) and "categories" in parsed: return parsed
+    except Exception:
+        pass
+    items = []
+    for m in re.finditer(r"\"name\"\s*:\s*\"([^\"]+)\"\s*,\s*\"price\"\s*:\s*([0-9.]+)", candidate):
+        try: p = float(m.group(2))
+        except: p = 0.0
+        items.append({"name": m.group(1).strip(), "price": p, "description": "", "tags": ["popular"]})
+    if items:
+        rm = re.search(r"\"restaurant_name\"\s*:\s*\"([^\"]+)\"", candidate)
+        return {"restaurant_name": rm.group(1) if rm else "Smart Menu", "categories": [{"category_name": "Main Menu", "theme": "acid-lime", "items": items}]}
+    raise ValueError(f"Could not parse valid JSON from AI response: {candidate[:150]}...")
+
 @app.post("/api/process-menu")
 async def process_menu(
     file: UploadFile = File(...),
@@ -197,20 +262,34 @@ async def process_menu(
     """
 
     try:
-        completion = client.chat.completions.create(
-            model=os.environ.get("GROQ_MODEL"),
-            messages=[
-                {"role": "user", "content": [
-                    {"type": "text", "text": prompt},
-                    {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{base64_image}"}}
-                ]}
-            ],
-            temperature=0.1,
-            max_tokens=4000,
-        )
+        try:
+            completion = client.chat.completions.create(
+                model=os.environ.get("GROQ_MODEL", "qwen/qwen3.8-27b"),
+                messages=[
+                    {"role": "user", "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{base64_image}"}}
+                    ]}
+                ],
+                temperature=0.1,
+                max_tokens=4000,
+                response_format={"type": "json_object"},
+            )
+        except Exception:
+            completion = client.chat.completions.create(
+                model=os.environ.get("GROQ_MODEL", "qwen/qwen3.8-27b"),
+                messages=[
+                    {"role": "user", "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{base64_image}"}}
+                    ]}
+                ],
+                temperature=0.1,
+                max_tokens=4000,
+            )
         
-        raw_text = re.sub(r'<think>.*?</think>', '', completion.choices[0].message.content, flags=re.DOTALL)
-        menu_data = json.loads(raw_text[raw_text.find('{'):raw_text.rfind('}')+1])
+        content = completion.choices[0].message.content or ""
+        menu_data = clean_and_parse_json(content)
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI parsing failed: {str(e)}")
