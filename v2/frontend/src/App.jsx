@@ -42,7 +42,27 @@ function AppContent() {
   const [session, setSession] = useState(() => {
     try {
       const saved = localStorage.getItem('acid_session');
-      return saved ? JSON.parse(saved) : null;
+      if (!saved) return null;
+      const parsed = JSON.parse(saved);
+      if (parsed?.menu_data?.categories) {
+        parsed.menu_data.categories.forEach((cat) => {
+          cat.items?.forEach((item) => {
+            if (
+              !item.image_url ||
+              item.image_url.includes('wikimedia.org') ||
+              item.image_url.includes('wikipedia.org') ||
+              item.image_url.includes('pollinations.ai')
+            ) {
+              const clean = (item.name || '')
+                .replace(/\([^)]*\)/g, '')
+                .replace(/\b(spl|spl\.|special|veg|veg\.|non-veg|non-veg\.|family|best|hot|cold)\b/gi, '')
+                .trim();
+              item.image_url = `/api/dishes/image?name=${encodeURIComponent(clean || item.name)}&category=${encodeURIComponent(cat.category_name || '')}&v=2`;
+            }
+          });
+        });
+      }
+      return parsed;
     } catch {
       return null;
     }

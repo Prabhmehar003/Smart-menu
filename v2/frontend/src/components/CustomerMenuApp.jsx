@@ -31,11 +31,17 @@ export function getReliableDishImage(dishName, categoryName) {
     .replace(/\b(spl|spl\.|special|veg|veg\.|non-veg|non-veg\.|family|best|hot|cold)\b/gi, '')
     .trim();
   const cat = (categoryName || '').trim();
-  return `/api/dishes/image?name=${encodeURIComponent(clean || dishName)}&category=${encodeURIComponent(cat)}`;
+  return `/api/dishes/image?name=${encodeURIComponent(clean || dishName)}&category=${encodeURIComponent(cat)}&v=2`;
 }
 
 export function sanitizeDishImageUrl(url, dishName, categoryName) {
-  if (!url || typeof url !== 'string' || url.includes('pollinations.ai')) {
+  if (
+    !url ||
+    typeof url !== 'string' ||
+    url.includes('pollinations.ai') ||
+    url.includes('wikimedia.org') ||
+    url.includes('wikipedia.org')
+  ) {
     return getReliableDishImage(dishName, categoryName);
   }
   return url;
