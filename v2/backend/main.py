@@ -320,7 +320,7 @@ def clean_culinary_terms(name: str, category: str = ""):
 def make_dish_slug(dish_name: str, category: str = "") -> str:
     clean_name, clean_cat, _ = clean_culinary_terms(dish_name, category)
     combined = f"{clean_cat}_{clean_name}".strip("_")
-    return re.sub(r"[^a-zA-Z0-9]", "_", combined.lower()).strip("_")[:60]
+    return re.sub(r"[^a-zA-Z0-9]+", "_", combined.lower()).strip("_")[:60]
 
 def build_cloudflare_prompt(dish_name: str, category: str = "", description: str = "") -> str:
     clean_name, clean_cat, _ = clean_culinary_terms(dish_name, category)
@@ -431,12 +431,24 @@ async def fetch_cloudflare_image_bytes(dish_name: str, category: str = "", descr
                 from PIL import Image
                 import io
                 img = Image.open(io.BytesIO(r.content))
+                extrema = img.getextrema()
+                if all(e[0] == 0 and e[1] == 0 for e in extrema):
+                    clean_name, clean_cat, _ = clean_culinary_terms(dish_name, category)
+                    r_retry = await client.post(
+                        url,
+                        headers=headers,
+                        json={"prompt": f"delicious {clean_name} {clean_cat} dish, appetizing restaurant food photography"}
+                    )
+                    if r_retry.status_code == 200 and r_retry.content:
+                        img = Image.open(io.BytesIO(r_retry.content))
                 if img.mode in ("RGBA", "P"):
                     img = img.convert("RGB")
                 img = img.resize((512, 512), Image.Resampling.LANCZOS)
                 buf = io.BytesIO()
-                img.save(buf, format="JPEG", quality=82, optimize=True)
-                return buf.getvalue()
+                img.save(buf, format="JPEG", quality=84, optimize=True)
+                val = buf.getvalue()
+                if len(val) > 4000:
+                    return val
             else:
                 logger.warning("Cloudflare AI generation status %s for '%s' in '%s'", r.status_code, dish_name, category)
     except Exception as e:
@@ -500,9 +512,11 @@ async def enrich_menu_with_images(menu_data: dict) -> None:
     tasks = [_resolve_with_sem(item, cat_name) for item, cat_name in flat_items]
     resolved = await asyncio.gather(*tasks, return_exceptions=True)
 
+    seen_urls = set()
     import urllib.parse
     for (item, cat_name), url in zip(flat_items, resolved):
-        if isinstance(url, str) and (url.startswith("http") or url.startswith("/")):
+        if isinstance(url, str) and url.startswith("http") and url not in seen_urls:
+            seen_urls.add(url)
             item["image_url"] = url
         else:
             item["image_url"] = f"/api/dishes/image?name={urllib.parse.quote(item.get('name', ''))}&category={urllib.parse.quote(cat_name)}"
@@ -523,25 +537,35 @@ async def get_dish_image_stream(
     5. Cloudflare Workers AI generation with Category + Name prompt (~1.5s)
     """
     slug = make_dish_slug(name, category)
-    out_file = DISHES_DIR / f"{slug}.jpg"
-    legacy_file = DISHES_DIR / f"{slug}.png"
+    raw_slug = re.sub(r"[^a-zA-Z0-9]+", "_", f"{category}_{name}".lower()).strip("_")[:60]
+    candidate_slugs = [slug] if slug == raw_slug else [slug, raw_slug]
 
     # 1. Local disk cache (0ms)
-    if out_file.exists() and out_file.stat().st_size > 500:
-        return Response(
-            content=out_file.read_bytes(),
-            media_type="image/jpeg",
-            headers={"Cache-Control": "public, max-age=31536000, immutable"},
-        )
-    if legacy_file.exists() and legacy_file.stat().st_size > 500:
-        return Response(
-            content=legacy_file.read_bytes(),
-            media_type="image/png",
-            headers={"Cache-Control": "public, max-age=31536000, immutable"},
-        )
+    for s in candidate_slugs:
+        out_file = DISHES_DIR / f"{s}.jpg"
+        legacy_file = DISHES_DIR / f"{s}.png"
+        if out_file.exists() and out_file.stat().st_size > 500:
+            return Response(
+                content=out_file.read_bytes(),
+                media_type="image/jpeg",
+                headers={"Cache-Control": "public, max-age=31536000, immutable"},
+            )
+        if legacy_file.exists() and legacy_file.stat().st_size > 500:
+            return Response(
+                content=legacy_file.read_bytes(),
+                media_type="image/png",
+                headers={"Cache-Control": "public, max-age=31536000, immutable"},
+            )
 
     # 2. Check persistent PostgreSQL DB cache (10ms)
-    cached = get_cached_dish_image(slug)
+    cached = None
+    matched_slug = slug
+    for s in candidate_slugs:
+        cached = get_cached_dish_image(s)
+        if cached:
+            matched_slug = s
+            break
+
     if cached:
         if cached.get("image_url"):
             return Response(
@@ -551,7 +575,7 @@ async def get_dish_image_stream(
         if cached.get("image_bytes"):
             raw = bytes(cached["image_bytes"])
             try:
-                out_file.write_bytes(raw)
+                (DISHES_DIR / f"{matched_slug}.jpg").write_bytes(raw)
             except Exception:
                 pass
             return Response(
