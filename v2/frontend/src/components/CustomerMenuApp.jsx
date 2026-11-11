@@ -93,9 +93,34 @@ function DishImage({ item, theme, accent, priority = false }) {
 }
 
 function CustomerMenuApp({ session, settings = {} }) {
-  const { session_token, table_id, menu_data } = session;
+  const { session_token, table_id, menu_data: initialMenuData } = session;
   const isCounterOrder = table_id === 'COUNTER';
+  const [menu_data, setMenuData] = useState(initialMenuData || { categories: [] });
   const [liveSettings, setLiveSettings] = useState(settings);
+
+  useEffect(() => {
+    if (session?.menu_data) {
+      setMenuData(session.menu_data);
+    }
+  }, [session?.menu_data]);
+
+  // Auto-refresh menu from server to ensure direct high-speed CDN image URLs are loaded
+  useEffect(() => {
+    if (session?.menu_id) {
+      fetch(`/api/menus/${session.menu_id}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((res) => {
+          if (res?.data?.categories?.length) {
+            setMenuData(res.data);
+            try {
+              const updated = { ...session, menu_data: res.data };
+              localStorage.setItem('acid_session', JSON.stringify(updated));
+            } catch {}
+          }
+        })
+        .catch(() => {});
+    }
+  }, [session?.menu_id]);
 
   useEffect(() => {
     setLiveSettings(settings);
@@ -160,7 +185,7 @@ function CustomerMenuApp({ session, settings = {} }) {
   const [checkoutStatus, setCheckoutStatus]   = useState('idle');
   const [checkoutError, setCheckoutError]     = useState(null);
   const [searchQuery, setSearchQuery]         = useState('');
-  const [activeCategory, setActiveCategory]   = useState(menu_data.categories[0]?.category_name || '');
+  const [activeCategory, setActiveCategory]   = useState(menu_data.categories?.[0]?.category_name || '');
 
   // Tracking state & placed orders persistence (scoped strictly to current scanning session)
   const [trackingOrderId, setTrackingOrderId] = useState(null);
@@ -259,12 +284,13 @@ function CustomerMenuApp({ session, settings = {} }) {
   const totalPrice = cartItemsArray.reduce((a, c) => a + c.price * c.quantity, 0);
 
   const filteredCategories = useMemo(() => {
-    if (!searchQuery.trim()) return menu_data.categories;
+    const cats = menu_data.categories || [];
+    if (!searchQuery.trim()) return cats;
     const q = searchQuery.trim().toLowerCase();
-    return menu_data.categories
+    return cats
       .map((cat) => ({
         ...cat,
-        items: cat.items.filter(
+        items: (cat.items || []).filter(
           (item) =>
             item.name.toLowerCase().includes(q) ||
             (item.description || '').toLowerCase().includes(q)
@@ -477,7 +503,7 @@ function CustomerMenuApp({ session, settings = {} }) {
         {/* Category nav */}
         {!searchQuery.trim() && (
           <nav className="flex gap-2 px-4 sm:px-6 pb-3 sm:pb-4 overflow-x-auto no-scrollbar">
-            {menu_data.categories.map((cat) => (
+            {(menu_data.categories || []).map((cat) => (
               <button
                 key={cat.category_name}
                 onClick={() => scrollToCategory(cat.category_name)}
@@ -503,7 +529,7 @@ function CustomerMenuApp({ session, settings = {} }) {
           </div>
         )}
 
-        {(searchQuery.trim() ? filteredCategories : menu_data.categories).map((cat) => {
+        {(searchQuery.trim() ? filteredCategories : (menu_data.categories || [])).map((cat) => {
           const categoryTheme = MENU_THEMES[cat.theme] || menuTheme;
           return (
             <section

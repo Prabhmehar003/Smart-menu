@@ -279,15 +279,19 @@ def clean_dish_name(name: str) -> str:
     res = " ".join(cleaned.split()).strip()
     return res if res else (name or "").strip()
 
+_UNSPLASH_EXHAUSTED_UNTIL = 0
+
 async def fetch_scraped_image(dish_name: str) -> str | None:
-    if not UNSPLASH_ACCESS_KEY:
+    global _UNSPLASH_EXHAUSTED_UNTIL
+    import time
+    if not UNSPLASH_ACCESS_KEY or time.time() < _UNSPLASH_EXHAUSTED_UNTIL:
         return None
     clean = clean_dish_name(dish_name)
     cache_key = f"unsplash_{clean.lower()}"
     if cache_key in IMAGE_CACHE:
         return IMAGE_CACHE[cache_key]
     try:
-        async with httpx.AsyncClient(timeout=3.5) as http:
+        async with httpx.AsyncClient(timeout=2.5) as http:
             r = await http.get(
                 "https://api.unsplash.com/search/photos",
                 params={"query": f"{clean} food dish", "per_page": 1, "orientation": "squarish"},
@@ -300,6 +304,9 @@ async def fetch_scraped_image(dish_name: str) -> str | None:
                 if url:
                     IMAGE_CACHE[cache_key] = url
                     return url
+        elif r.status_code in (403, 429):
+            _UNSPLASH_EXHAUSTED_UNTIL = time.time() + 900
+            logger.info("Unsplash free-tier rate limit (50 req/hr) hit. Auto-backing off for 15m; prioritizing Wikipedia & Cloudflare.")
     except Exception:
         pass
     return None
@@ -310,16 +317,20 @@ async def fetch_wikipedia_image(dish_name: str) -> str | None:
     if cache_key in IMAGE_CACHE:
         return IMAGE_CACHE[cache_key]
     try:
-        async with httpx.AsyncClient(timeout=3.5) as client:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            # generator=search provides flexible full-text culinary matching with zero rate limits
             r = await client.get(
                 "https://en.wikipedia.org/w/api.php",
                 params={
                     "action": "query",
-                    "titles": clean,
+                    "generator": "search",
+                    "gsrsearch": f"{clean} food dish",
+                    "gsrlimit": 1,
                     "prop": "pageimages",
+                    "pithumbsize": 600,
                     "format": "json",
-                    "pithumbsize": 500,
                 },
+                headers={"User-Agent": "SmartMenuBot/2.0 (contact@smartmenu.app)"},
             )
         if r.status_code == 200:
             pages = r.json().get("query", {}).get("pages", {})
@@ -383,7 +394,7 @@ async def resolve_dish_image(dish_name: str, description: str = "") -> str | Non
     clean = clean_dish_name(dish_clean)
     slug = re.sub(r"[^a-zA-Z0-9]", "_", clean.lower()).strip("_")[:50]
     
-    # Check DB cache first
+    # 1. Check persistent DB cache first (0 network latency)
     cached = get_cached_dish_image(slug)
     if cached:
         if cached.get("image_url"):
@@ -394,15 +405,15 @@ async def resolve_dish_image(dish_name: str, description: str = "") -> str | Non
             IMAGE_CACHE[cache_key] = url
             return url
 
-    # Tier 1: Real photography search via Unsplash API (~150ms)
-    url = await fetch_scraped_image(dish_clean)
+    # 2. Tier 1: Wikipedia Commons full-text search (instant ~120ms, ZERO rate limits)
+    url = await fetch_wikipedia_image(dish_clean)
     if url:
         set_cached_dish_image(slug, image_url=url)
         IMAGE_CACHE[cache_key] = url
         return url
 
-    # Tier 2: Wikipedia Commons (~150ms)
-    url = await fetch_wikipedia_image(dish_clean)
+    # 3. Tier 2: Unsplash search (if within 50 req/hr quota)
+    url = await fetch_scraped_image(dish_clean)
     if url:
         set_cached_dish_image(slug, image_url=url)
         IMAGE_CACHE[cache_key] = url
@@ -421,8 +432,8 @@ async def enrich_menu_with_images(menu_data: dict) -> None:
     if not flat_items:
         return
 
-    # Use a concurrency semaphore so large menus don't exceed API rate limits
-    semaphore = asyncio.Semaphore(5)
+    # Concurrency semaphore for fast batch resolution
+    semaphore = asyncio.Semaphore(10)
 
     async def _resolve_with_sem(item):
         async with semaphore:
@@ -446,8 +457,8 @@ async def get_dish_image_stream(name: str = Query(...)):
     On-demand dish image endpoint.
     1. Local disk cache (0ms)
     2. Neon PostgreSQL DB cache (10ms)
-    3. Unsplash instant match (302 redirect ~100ms)
-    4. Wikipedia match (302 redirect ~150ms)
+    3. Wikipedia match (302 redirect ~120ms with 0 rate limit)
+    4. Unsplash instant match (302 redirect ~100ms)
     5. Cloudflare Workers AI generation (saved to DB and disk) (~1.5s)
     """
     clean = clean_dish_name(name)
@@ -489,16 +500,7 @@ async def get_dish_image_stream(name: str = Query(...)):
                 headers={"Cache-Control": "public, max-age=31536000, immutable"},
             )
 
-    # 3. Check Unsplash instant match (~100ms)
-    unsplash_url = await fetch_scraped_image(clean)
-    if unsplash_url:
-        set_cached_dish_image(slug, image_url=unsplash_url)
-        return Response(
-            status_code=302,
-            headers={"Location": unsplash_url, "Cache-Control": "public, max-age=31536000, immutable"},
-        )
-
-    # 4. Check Wikipedia Commons (~150ms)
+    # 3. Check Wikipedia Commons instant match (~120ms, ZERO rate limits)
     wiki_url = await fetch_wikipedia_image(clean)
     if wiki_url:
         set_cached_dish_image(slug, image_url=wiki_url)
@@ -507,7 +509,16 @@ async def get_dish_image_stream(name: str = Query(...)):
             headers={"Location": wiki_url, "Cache-Control": "public, max-age=31536000, immutable"},
         )
 
-    # 5. Cloudflare Workers AI generation (~1.5s)
+    # 4. Check Unsplash instant match (~100ms)
+    unsplash_url = await fetch_scraped_image(clean)
+    if unsplash_url:
+        set_cached_dish_image(slug, image_url=unsplash_url)
+        return Response(
+            status_code=302,
+            headers={"Location": unsplash_url, "Cache-Control": "public, max-age=31536000, immutable"},
+        )
+
+    # 5. Cloudflare Workers AI generation (~1.5s, cached forever)
     cf_bytes = await fetch_cloudflare_image_bytes(clean)
     if cf_bytes:
         try:
@@ -1290,6 +1301,27 @@ async def process_menu(
             "short_code": counter_code,
         },
         "menu_data": menu_data,
+    }
+
+
+@app.get("/api/menus/{menu_id}")
+async def get_menu_by_id(menu_id: str):
+    """
+    Public menu retrieval endpoint to fetch up-to-date dish data and image URLs.
+    """
+    with db_cursor(commit=False) as cur:
+        cur.execute(
+            "SELECT menu_id, restaurant_name, data_json, plan FROM menus WHERE menu_id = %s LIMIT 1",
+            (menu_id,)
+        )
+        row = row_to_dict(cur.fetchone())
+    if not row:
+        raise HTTPException(status_code=404, detail="Menu not found")
+    return {
+        "menu_id": row["menu_id"],
+        "restaurant_name": row["restaurant_name"],
+        "plan": row.get("plan"),
+        "data": json.loads(row["data_json"]),
     }
 
 
