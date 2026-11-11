@@ -33,15 +33,23 @@ export function getReliableDishImage(dishName, categoryName) {
   return `/api/dishes/image?name=${encodeURIComponent(clean || dishName)}`;
 }
 
+export function sanitizeDishImageUrl(url, dishName, categoryName) {
+  if (!url || typeof url !== 'string' || url.includes('pollinations.ai')) {
+    return getReliableDishImage(dishName, categoryName);
+  }
+  return url;
+}
+
 function DishImage({ item, theme, accent }) {
   const fallbackUrl = useMemo(() => getReliableDishImage(item.name, item.category), [item.name, item.category]);
-  const [imgSrc, setImgSrc] = useState(() => item.image_url || fallbackUrl);
+  const initialUrl = useMemo(() => sanitizeDishImageUrl(item.image_url, item.name, item.category), [item.image_url, item.name, item.category]);
+  const [imgSrc, setImgSrc] = useState(initialUrl);
   const [hasFailed, setHasFailed] = useState(false);
 
   useEffect(() => {
-    setImgSrc(item.image_url || fallbackUrl);
+    setImgSrc(sanitizeDishImageUrl(item.image_url, item.name, item.category));
     setHasFailed(false);
-  }, [item.image_url, fallbackUrl]);
+  }, [item.image_url, item.name, item.category]);
 
   const handleError = () => {
     if (!hasFailed && imgSrc !== fallbackUrl) {
@@ -768,7 +776,7 @@ function CustomerMenuApp({ session, settings = {} }) {
                     <div key={idx} className="flex items-center gap-3 bg-white/[0.04] p-3 rounded-2xl border border-white/5">
                       <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-white/5">
                         <img
-                          src={item.image_url || getReliableDishImage(item.name)}
+                          src={sanitizeDishImageUrl(item.image_url, item.name)}
                           alt={item.name}
                           onError={(e) => {
                             e.currentTarget.src = getReliableDishImage(item.name);

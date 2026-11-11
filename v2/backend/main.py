@@ -352,10 +352,11 @@ async def fetch_cloudflare_image(dish_name: str, description: str = "") -> str |
         "Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}",
         "Content-Type": "application/json",
     }
-    prompt = f"gourmet plated {clean}, delicious restaurant culinary food photography, studio lighting, highly detailed, 4k"
+    desc_part = f", {description.strip()[:60]}" if description and len(description.strip()) > 3 else ""
+    prompt = f"gourmet plated {clean}{desc_part}, delicious restaurant culinary food photography, studio lighting, highly detailed, 4k"
 
     try:
-        async with httpx.AsyncClient(timeout=20.0) as client:
+        async with httpx.AsyncClient(timeout=25.0) as client:
             r = await client.post(url, headers=headers, json={"prompt": prompt})
             if r.status_code == 200 and r.content:
                 out_file.write_bytes(r.content)
@@ -397,16 +398,23 @@ async def resolve_dish_image(dish_name: str, description: str = "") -> str | Non
     return url
 
 async def enrich_menu_with_images(menu_data: dict) -> None:
-    flat_items, tasks = [], []
+    flat_items = []
     for cat in menu_data.get("categories", []):
         for item in cat.get("items", []):
             flat_items.append(item)
-            tasks.append(
-                resolve_dish_image(item.get("name", ""), item.get("description", ""))
-            )
-    if not tasks:
+    if not flat_items:
         return
+
+    # Use a concurrency semaphore so large menus don't exceed API rate limits
+    semaphore = asyncio.Semaphore(5)
+
+    async def _resolve_with_sem(item):
+        async with semaphore:
+            return await resolve_dish_image(item.get("name", ""), item.get("description", ""))
+
+    tasks = [_resolve_with_sem(item) for item in flat_items]
     resolved = await asyncio.gather(*tasks, return_exceptions=True)
+
     import urllib.parse
     for item, url in zip(flat_items, resolved):
         if isinstance(url, str) and (url.startswith("http") or url.startswith("/")):
