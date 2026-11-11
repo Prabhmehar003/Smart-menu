@@ -267,34 +267,101 @@ def calculate_distance(lat1, lon1, lat2, lon2):
 # Image sourcing (Unsplash -> Wikipedia Commons -> Pollinations AI fallback)
 # ---------------------------------------------------------------------------
 
-def clean_dish_name(name: str) -> str:
-    cleaned = re.sub(r"\([^)]*\)", "", name or "")
-    cleaned = re.sub(
+def clean_culinary_terms(name: str, category: str = ""):
+    corrections = {
+        "vennila": "vanilla",
+        "panner": "paneer",
+        "chikku": "chikoo sapodilla",
+        "aanar": "pomegranate",
+        "semam": "cantaloupe muskmelon",
+        "pipeapple": "pineapple",
+        "filed rice": "fried rice",
+    }
+    n = (name or "").lower()
+    for wrong, right in corrections.items():
+        n = re.sub(rf"\b{wrong}\b", right, n)
+
+    clean_name = re.sub(r"\([^)]*\)", "", n)
+    clean_name = re.sub(
         r"\b(spl|spl\.|special|veg|veg\.|non-veg|non-veg\.|family|best|hot|cold|fresh|signature|delicious|plate|platter|bowl|combo)\b",
         "",
-        cleaned,
+        clean_name,
         flags=re.IGNORECASE,
     )
-    cleaned = re.sub(r"[^a-zA-Z\s]", " ", cleaned)
-    res = " ".join(cleaned.split()).strip()
-    return res if res else (name or "").strip()
+    clean_name = re.sub(r"[^a-zA-Z\s]", " ", clean_name)
+    clean_name = " ".join(clean_name.split()).strip() or (name or "").strip()
+
+    clean_cat = re.sub(r"[^a-zA-Z\s]", " ", category or "").strip().lower()
+
+    # Formulate precise category-aware query for search engines
+    if any(w in clean_cat for w in ["shake", "ice cream", "dessert", "falooda"]):
+        search_query = f"{clean_name} ice cream milkshake dessert"
+    elif any(w in clean_cat for w in ["lime", "juice", "beverage", "drink", "soda"]):
+        search_query = f"{clean_name} fresh lime juice cooler drink"
+    elif "parotta" in clean_cat or "bread" in clean_cat or "roti" in clean_cat:
+        search_query = f"{clean_name} parotta roti flatbread"
+    elif "fried rice" in clean_cat or "rice" in clean_cat:
+        search_query = f"{clean_name} fried rice bowl dish"
+    elif "fish" in clean_cat or "seafood" in clean_cat:
+        search_query = f"{clean_name} fish seafood culinary dish"
+    elif "mutton" in clean_cat:
+        search_query = f"{clean_name} mutton meat curry dish"
+    elif "chicken" in clean_cat:
+        search_query = f"{clean_name} chicken culinary dish"
+    elif "chinese" in clean_cat:
+        search_query = f"{clean_name} starter appetizer food dish"
+    elif clean_cat:
+        search_query = f"{clean_name} {clean_cat} food dish"
+    else:
+        search_query = f"{clean_name} delicious restaurant dish"
+
+    return clean_name.title(), clean_cat.title(), " ".join(search_query.split())
+
+def make_dish_slug(dish_name: str, category: str = "") -> str:
+    clean_name, clean_cat, _ = clean_culinary_terms(dish_name, category)
+    combined = f"{clean_cat}_{clean_name}".strip("_")
+    return re.sub(r"[^a-zA-Z0-9]", "_", combined.lower()).strip("_")[:60]
+
+def build_cloudflare_prompt(dish_name: str, category: str = "", description: str = "") -> str:
+    clean_name, clean_cat, _ = clean_culinary_terms(dish_name, category)
+    desc_part = f", {description.strip()[:60]}" if description and len(description.strip()) > 3 else ""
+    cat_lower = clean_cat.lower()
+
+    if any(w in cat_lower for w in ["shake", "ice cream", "dessert", "falooda"]):
+        framing = f"cold refreshing dessert, tall glass of {clean_name} milkshake with creamy rich froth, fresh toppings, served with a straw and spoon"
+    elif any(w in cat_lower for w in ["lime", "juice", "beverage", "drink", "soda"]):
+        framing = f"chilled artisan glass of {clean_name} citrus drink, ice cubes, fresh lime slice garnish, condensation on glass"
+    elif "parotta" in cat_lower or "bread" in cat_lower or "roti" in cat_lower:
+        framing = f"golden brown flaky layered {clean_name} on an authentic banana leaf, served with aromatic salna gravy in small copper bowl"
+    elif "fried rice" in cat_lower or "rice" in cat_lower:
+        framing = f"steaming bowl of wok-tossed {clean_name} with vibrant vegetables, spring onions, culinary restaurant plating"
+    elif "fish" in cat_lower or "seafood" in cat_lower:
+        framing = f"gourmet plated {clean_name} seafood dish with lemon wedge and fresh curry leaves, coastal restaurant presentation"
+    elif "mutton" in cat_lower:
+        framing = f"succulent roasted {clean_name} tender meat dish with rich aromatic masala gravy, garnished with coriander"
+    elif "chicken" in cat_lower or "chinese" in cat_lower:
+        framing = f"crispy spicy {clean_name} tossed in flavorful sauce, garnished with toasted sesame and scallions, white ceramic plate"
+    else:
+        framing = f"gourmet plated {clean_name} {clean_cat} dish, delicious restaurant culinary presentation"
+
+    return f"commercial food photography of {framing}{desc_part}, 4k ultra-detailed, studio food lighting, depth of field, appetizing masterpiece"
 
 _UNSPLASH_EXHAUSTED_UNTIL = 0
 
-async def fetch_scraped_image(dish_name: str) -> str | None:
+async def fetch_scraped_image(dish_name: str, category: str = "") -> str | None:
     global _UNSPLASH_EXHAUSTED_UNTIL
     import time
     if not UNSPLASH_ACCESS_KEY or time.time() < _UNSPLASH_EXHAUSTED_UNTIL:
         return None
-    clean = clean_dish_name(dish_name)
-    cache_key = f"unsplash_{clean.lower()}"
+    _, _, query = clean_culinary_terms(dish_name, category)
+    cache_key = f"unsplash_{re.sub(r'[^a-zA-Z0-9]', '_', query.lower())}"
     if cache_key in IMAGE_CACHE:
         return IMAGE_CACHE[cache_key]
     try:
         async with httpx.AsyncClient(timeout=2.5) as http:
             r = await http.get(
                 "https://api.unsplash.com/search/photos",
-                params={"query": f"{clean} food dish", "per_page": 1, "orientation": "squarish"},
+                params={"query": query, "per_page": 1, "orientation": "squarish"},
                 headers={"Authorization": f"Client-ID {UNSPLASH_ACCESS_KEY}"},
             )
         if r.status_code == 200:
@@ -311,20 +378,19 @@ async def fetch_scraped_image(dish_name: str) -> str | None:
         pass
     return None
 
-async def fetch_wikipedia_image(dish_name: str) -> str | None:
-    clean = clean_dish_name(dish_name)
-    cache_key = f"wiki_{clean.lower()}"
+async def fetch_wikipedia_image(dish_name: str, category: str = "") -> str | None:
+    _, _, query = clean_culinary_terms(dish_name, category)
+    cache_key = f"wiki_{re.sub(r'[^a-zA-Z0-9]', '_', query.lower())}"
     if cache_key in IMAGE_CACHE:
         return IMAGE_CACHE[cache_key]
     try:
         async with httpx.AsyncClient(timeout=3.0) as client:
-            # generator=search provides flexible full-text culinary matching with zero rate limits
             r = await client.get(
                 "https://en.wikipedia.org/w/api.php",
                 params={
                     "action": "query",
                     "generator": "search",
-                    "gsrsearch": f"{clean} food dish",
+                    "gsrsearch": query,
                     "gsrlimit": 1,
                     "prop": "pageimages",
                     "pithumbsize": 600,
@@ -343,25 +409,20 @@ async def fetch_wikipedia_image(dish_name: str) -> str | None:
         pass
     return None
 
-async def fetch_cloudflare_image_bytes(dish_name: str, description: str = "") -> bytes | None:
+async def fetch_cloudflare_image_bytes(dish_name: str, category: str = "", description: str = "") -> bytes | None:
     """
     Tier 2 AI Generator: Uses Cloudflare Workers AI (@cf/bytedance/stable-diffusion-xl-lightning)
-    Generates studio-grade culinary photography, optimized with Pillow into a ~35KB JPEG.
+    Generates studio-grade culinary photography, strictly customized by category and dish name.
     """
     if not CLOUDFLARE_ACCOUNT_ID or not CLOUDFLARE_API_TOKEN:
         return None
 
-    clean = clean_dish_name(dish_name)
-    if not clean:
-        clean = "gourmet restaurant food dish"
-
+    prompt = build_cloudflare_prompt(dish_name, category, description)
     url = f"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/bytedance/stable-diffusion-xl-lightning"
     headers = {
         "Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}",
         "Content-Type": "application/json",
     }
-    desc_part = f", {description.strip()[:50]}" if description and len(description.strip()) > 3 else ""
-    prompt = f"gourmet plated {clean}{desc_part}, delicious restaurant culinary food photography, studio lighting, highly detailed, 4k"
 
     try:
         async with httpx.AsyncClient(timeout=25.0) as client:
@@ -377,92 +438,91 @@ async def fetch_cloudflare_image_bytes(dish_name: str, description: str = "") ->
                 img.save(buf, format="JPEG", quality=82, optimize=True)
                 return buf.getvalue()
             else:
-                logger.warning("Cloudflare AI generation status %s for '%s'", r.status_code, clean)
+                logger.warning("Cloudflare AI generation status %s for '%s' in '%s'", r.status_code, dish_name, category)
     except Exception as e:
-        logger.warning("Cloudflare AI generation error for '%s': %s", clean, e)
+        logger.warning("Cloudflare AI generation error for '%s' in '%s': %s", dish_name, category, e)
 
     return None
 
-async def resolve_dish_image(dish_name: str, description: str = "") -> str | None:
+async def resolve_dish_image(dish_name: str, category: str = "", description: str = "") -> str | None:
     dish_clean = (dish_name or "").strip()
     if not dish_clean:
         return None
-    cache_key = dish_clean.lower()
-    if cache_key in IMAGE_CACHE:
-        return IMAGE_CACHE[cache_key]
+    slug = make_dish_slug(dish_clean, category)
+    if slug in IMAGE_CACHE:
+        return IMAGE_CACHE[slug]
 
-    clean = clean_dish_name(dish_clean)
-    slug = re.sub(r"[^a-zA-Z0-9]", "_", clean.lower()).strip("_")[:50]
-    
     # 1. Check persistent DB cache first (0 network latency)
     cached = get_cached_dish_image(slug)
     if cached:
         if cached.get("image_url"):
-            IMAGE_CACHE[cache_key] = cached["image_url"]
+            IMAGE_CACHE[slug] = cached["image_url"]
             return cached["image_url"]
         if cached.get("image_bytes"):
-            url = f"/api/dishes/image?name={urllib.parse.quote(clean)}"
-            IMAGE_CACHE[cache_key] = url
+            url = f"/api/dishes/image?name={urllib.parse.quote(dish_clean)}&category={urllib.parse.quote(category)}"
+            IMAGE_CACHE[slug] = url
             return url
 
-    # 2. Tier 1: Wikipedia Commons full-text search (instant ~120ms, ZERO rate limits)
-    url = await fetch_wikipedia_image(dish_clean)
+    # 2. Tier 1: Wikipedia Commons full-text search with Category + Name
+    url = await fetch_wikipedia_image(dish_clean, category)
     if url:
         set_cached_dish_image(slug, image_url=url)
-        IMAGE_CACHE[cache_key] = url
+        IMAGE_CACHE[slug] = url
         return url
 
-    # 3. Tier 2: Unsplash search (if within 50 req/hr quota)
-    url = await fetch_scraped_image(dish_clean)
+    # 3. Tier 2: Unsplash search with Category + Name
+    url = await fetch_scraped_image(dish_clean, category)
     if url:
         set_cached_dish_image(slug, image_url=url)
-        IMAGE_CACHE[cache_key] = url
+        IMAGE_CACHE[slug] = url
         return url
 
     # Fallback to dynamic endpoint (served from CF generator + Postgres)
-    url = f"/api/dishes/image?name={urllib.parse.quote(clean)}"
-    IMAGE_CACHE[cache_key] = url
+    url = f"/api/dishes/image?name={urllib.parse.quote(dish_clean)}&category={urllib.parse.quote(category)}"
+    IMAGE_CACHE[slug] = url
     return url
 
 async def enrich_menu_with_images(menu_data: dict) -> None:
     flat_items = []
     for cat in menu_data.get("categories", []):
+        cat_name = cat.get("category_name", "")
         for item in cat.get("items", []):
-            flat_items.append(item)
+            flat_items.append((item, cat_name))
     if not flat_items:
         return
 
-    # Concurrency semaphore for fast batch resolution
     semaphore = asyncio.Semaphore(10)
 
-    async def _resolve_with_sem(item):
+    async def _resolve_with_sem(item, cat_name):
         async with semaphore:
-            return await resolve_dish_image(item.get("name", ""), item.get("description", ""))
+            return await resolve_dish_image(item.get("name", ""), cat_name, item.get("description", ""))
 
-    tasks = [_resolve_with_sem(item) for item in flat_items]
+    tasks = [_resolve_with_sem(item, cat_name) for item, cat_name in flat_items]
     resolved = await asyncio.gather(*tasks, return_exceptions=True)
 
     import urllib.parse
-    for item, url in zip(flat_items, resolved):
+    for (item, cat_name), url in zip(flat_items, resolved):
         if isinstance(url, str) and (url.startswith("http") or url.startswith("/")):
             item["image_url"] = url
         else:
-            clean_n = clean_dish_name(item.get("name", ""))
-            item["image_url"] = f"/api/dishes/image?name={urllib.parse.quote(clean_n)}"
+            item["image_url"] = f"/api/dishes/image?name={urllib.parse.quote(item.get('name', ''))}&category={urllib.parse.quote(cat_name)}"
 
 
 @app.get("/api/dishes/image")
-async def get_dish_image_stream(name: str = Query(...)):
+async def get_dish_image_stream(
+    name: str = Query(...),
+    category: str = Query(""),
+    description: str = Query("")
+):
     """
-    On-demand dish image endpoint.
+    On-demand dish image endpoint with Category + Name precision.
     1. Local disk cache (0ms)
     2. Neon PostgreSQL DB cache (10ms)
-    3. Wikipedia match (302 redirect ~120ms with 0 rate limit)
-    4. Unsplash instant match (302 redirect ~100ms)
-    5. Cloudflare Workers AI generation (saved to DB and disk) (~1.5s)
+    3. Wikipedia match with Category + Name (~120ms)
+    4. Unsplash match with Category + Name (~100ms)
+    5. Cloudflare Workers AI generation with Category + Name prompt (~1.5s)
     """
-    clean = clean_dish_name(name)
-    slug = re.sub(r"[^a-zA-Z0-9]", "_", clean.lower()).strip("_")[:50]
+    slug = make_dish_slug(name, category)
     out_file = DISHES_DIR / f"{slug}.jpg"
     legacy_file = DISHES_DIR / f"{slug}.png"
 
@@ -500,8 +560,8 @@ async def get_dish_image_stream(name: str = Query(...)):
                 headers={"Cache-Control": "public, max-age=31536000, immutable"},
             )
 
-    # 3. Check Wikipedia Commons instant match (~120ms, ZERO rate limits)
-    wiki_url = await fetch_wikipedia_image(clean)
+    # 3. Check Wikipedia Commons with Category + Name (~120ms)
+    wiki_url = await fetch_wikipedia_image(name, category)
     if wiki_url:
         set_cached_dish_image(slug, image_url=wiki_url)
         return Response(
@@ -509,8 +569,8 @@ async def get_dish_image_stream(name: str = Query(...)):
             headers={"Location": wiki_url, "Cache-Control": "public, max-age=31536000, immutable"},
         )
 
-    # 4. Check Unsplash instant match (~100ms)
-    unsplash_url = await fetch_scraped_image(clean)
+    # 4. Check Unsplash with Category + Name (~100ms)
+    unsplash_url = await fetch_scraped_image(name, category)
     if unsplash_url:
         set_cached_dish_image(slug, image_url=unsplash_url)
         return Response(
@@ -518,8 +578,8 @@ async def get_dish_image_stream(name: str = Query(...)):
             headers={"Location": unsplash_url, "Cache-Control": "public, max-age=31536000, immutable"},
         )
 
-    # 5. Cloudflare Workers AI generation (~1.5s, cached forever)
-    cf_bytes = await fetch_cloudflare_image_bytes(clean)
+    # 5. Cloudflare Workers AI generation with Category + Name framing (~1.5s)
+    cf_bytes = await fetch_cloudflare_image_bytes(name, category, description)
     if cf_bytes:
         try:
             out_file.write_bytes(cf_bytes)

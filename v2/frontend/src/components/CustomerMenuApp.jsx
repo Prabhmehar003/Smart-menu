@@ -30,7 +30,8 @@ export function getReliableDishImage(dishName, categoryName) {
     .replace(/\([^)]*\)/g, '')
     .replace(/\b(spl|spl\.|special|veg|veg\.|non-veg|non-veg\.|family|best|hot|cold)\b/gi, '')
     .trim();
-  return `/api/dishes/image?name=${encodeURIComponent(clean || dishName)}`;
+  const cat = (categoryName || '').trim();
+  return `/api/dishes/image?name=${encodeURIComponent(clean || dishName)}&category=${encodeURIComponent(cat)}`;
 }
 
 export function sanitizeDishImageUrl(url, dishName, categoryName) {
@@ -40,18 +41,19 @@ export function sanitizeDishImageUrl(url, dishName, categoryName) {
   return url;
 }
 
-function DishImage({ item, theme, accent, priority = false }) {
-  const fallbackUrl = useMemo(() => getReliableDishImage(item.name, item.category), [item.name, item.category]);
-  const initialUrl = useMemo(() => sanitizeDishImageUrl(item.image_url, item.name, item.category), [item.image_url, item.name, item.category]);
+function DishImage({ item, theme, accent, categoryName, priority = false }) {
+  const cat = categoryName || item.category || '';
+  const fallbackUrl = useMemo(() => getReliableDishImage(item.name, cat), [item.name, cat]);
+  const initialUrl = useMemo(() => sanitizeDishImageUrl(item.image_url, item.name, cat), [item.image_url, item.name, cat]);
   const [imgSrc, setImgSrc] = useState(initialUrl);
   const [hasFailed, setHasFailed] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
-    setImgSrc(sanitizeDishImageUrl(item.image_url, item.name, item.category));
+    setImgSrc(sanitizeDishImageUrl(item.image_url, item.name, cat));
     setHasFailed(false);
     setIsLoaded(false);
-  }, [item.image_url, item.name, item.category]);
+  }, [item.image_url, item.name, cat]);
 
   const handleError = () => {
     if (!hasFailed && imgSrc !== fallbackUrl) {
@@ -555,7 +557,7 @@ function CustomerMenuApp({ session, settings = {} }) {
                       className="group relative bg-white/[0.04] backdrop-blur-xl border border-white/10 rounded-3xl overflow-hidden hover:border-white/25 hover:bg-white/[0.07] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_20px_60px_rgba(0,0,0,0.5)]"
                     >
                       <div className="p-3 pb-0">
-                        <DishImage item={item} theme={cat.theme || settings.default_theme} accent={categoryTheme.accent} priority={i < 4} />
+                        <DishImage item={item} theme={cat.theme || settings.default_theme} accent={categoryTheme.accent} categoryName={cat.category_name} priority={i < 4} />
                       </div>
                       <div className="p-5 pt-4">
                         <div className="flex justify-between items-start gap-3 mb-1.5">
