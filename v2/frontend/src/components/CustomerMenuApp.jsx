@@ -30,8 +30,7 @@ export function getReliableDishImage(dishName, categoryName) {
     .replace(/\([^)]*\)/g, '')
     .replace(/\b(spl|spl\.|special|veg|veg\.|non-veg|non-veg\.|family|best|hot|cold)\b/gi, '')
     .trim();
-  const prompt = `delicious ${clean || 'plated food'} gourmet dish culinary restaurant photography studio lighting`;
-  return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=800&height=600&nologo=true`;
+  return `/api/dishes/image?name=${encodeURIComponent(clean || dishName)}`;
 }
 
 function DishImage({ item, theme, accent }) {

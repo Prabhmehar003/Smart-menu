@@ -41,6 +41,8 @@ SECRET_KEY = os.environ.get(
 _groq_key = os.environ.get("GROQ_API_KEY")
 client = Groq(api_key=_groq_key) if _groq_key else None
 UNSPLASH_ACCESS_KEY = os.environ.get("UNSPLASH_ACCESS_KEY") or "vcbKY4KAfaLUO7PRGtKMyZEODdDmsepLON-pBn9RZ7I"
+CLOUDFLARE_ACCOUNT_ID = os.environ.get("CLOUDFLARE_ACCOUNT_ID")
+CLOUDFLARE_API_TOKEN = os.environ.get("CLOUDFLARE_API_TOKEN")
 
 # ---------------------------------------------------------------------------
 # Firebase Admin Initialization
@@ -83,6 +85,10 @@ UPLOADS_DIR = Path(__file__).parent / "uploads"
 AVATARS_DIR = UPLOADS_DIR / "avatars"
 AVATARS_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/static/avatars", StaticFiles(directory=str(AVATARS_DIR)), name="avatars")
+
+DISHES_DIR = UPLOADS_DIR / "dishes"
+DISHES_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/static/dishes", StaticFiles(directory=str(DISHES_DIR)), name="dishes")
 
 try:
     init_db()
@@ -324,14 +330,43 @@ async def fetch_wikipedia_image(dish_name: str) -> str | None:
         pass
     return None
 
-async def fetch_generated_image(dish_name: str, description: str = "") -> str | None:
+async def fetch_cloudflare_image(dish_name: str, description: str = "") -> str | None:
+    """
+    Tier 2 AI Generator: Uses Cloudflare Workers AI (@cf/bytedance/stable-diffusion-xl-lightning)
+    to generate studio-grade food photography in ~1.5s and saves to /static/dishes/.
+    """
+    if not CLOUDFLARE_ACCOUNT_ID or not CLOUDFLARE_API_TOKEN:
+        return None
+
     clean = clean_dish_name(dish_name)
     if not clean:
         clean = "gourmet restaurant food dish"
-    import urllib.parse
-    prompt_str = f"gourmet {clean} plated food photography restaurant dining studio lighting 4k"
-    encoded = urllib.parse.quote(prompt_str)
-    return f"https://image.pollinations.ai/prompt/{encoded}?width=800&height=600&nologo=true"
+
+    slug = re.sub(r"[^a-zA-Z0-9]", "_", clean.lower()).strip("_")[:40]
+    out_file = DISHES_DIR / f"{slug}.png"
+    if out_file.exists() and out_file.stat().st_size > 1000:
+        return f"/static/dishes/{slug}.png"
+
+    url = f"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/bytedance/stable-diffusion-xl-lightning"
+    headers = {
+        "Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}",
+        "Content-Type": "application/json",
+    }
+    prompt = f"gourmet plated {clean}, delicious restaurant culinary food photography, studio lighting, highly detailed, 4k"
+
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            r = await client.post(url, headers=headers, json={"prompt": prompt})
+            if r.status_code == 200 and r.content:
+                out_file.write_bytes(r.content)
+                logger.info("Cloudflare Workers AI generated and cached: %s", out_file.name)
+                return f"/static/dishes/{slug}.png"
+            else:
+                logger.warning("Cloudflare AI generation status %s for '%s'", r.status_code, clean)
+    except Exception as e:
+        logger.warning("Cloudflare AI generation error for '%s': %s", clean, e)
+
+    return None
 
 async def resolve_dish_image(dish_name: str, description: str = "") -> str | None:
     dish_clean = (dish_name or "").strip()
@@ -341,11 +376,21 @@ async def resolve_dish_image(dish_name: str, description: str = "") -> str | Non
     if cache_key in IMAGE_CACHE:
         return IMAGE_CACHE[cache_key]
 
+    # Tier 1: Real photography search via Unsplash API (~150ms)
     url = await fetch_scraped_image(dish_clean)
+
+    # Tier 2: Cloudflare Workers AI generation (SDXL-Lightning ~1.5s)
+    if not url:
+        url = await fetch_cloudflare_image(dish_clean, description)
+
+    # Tier 3: Wikipedia Commons archive fallback
     if not url:
         url = await fetch_wikipedia_image(dish_clean)
+
+    # Fallback to dynamic on-demand generation endpoint
     if not url:
-        url = await fetch_generated_image(dish_clean, description)
+        import urllib.parse
+        url = f"/api/dishes/image?name={urllib.parse.quote(dish_clean)}"
 
     if url:
         IMAGE_CACHE[cache_key] = url
@@ -362,11 +407,47 @@ async def enrich_menu_with_images(menu_data: dict) -> None:
     if not tasks:
         return
     resolved = await asyncio.gather(*tasks, return_exceptions=True)
+    import urllib.parse
     for item, url in zip(flat_items, resolved):
-        if isinstance(url, str) and url.startswith("http"):
+        if isinstance(url, str) and (url.startswith("http") or url.startswith("/")):
             item["image_url"] = url
         else:
-            item["image_url"] = await fetch_generated_image(item.get("name", ""))
+            clean_n = clean_dish_name(item.get("name", ""))
+            item["image_url"] = f"/api/dishes/image?name={urllib.parse.quote(clean_n)}"
+
+
+@app.get("/api/dishes/image")
+async def get_dish_image_stream(name: str = Query(...)):
+    """
+    On-demand Cloudflare Workers AI dish image endpoint.
+    Serves from disk cache or generates via Cloudflare Workers AI on-the-fly.
+    """
+    clean = clean_dish_name(name)
+    slug = re.sub(r"[^a-zA-Z0-9]", "_", clean.lower()).strip("_")[:40]
+    out_file = DISHES_DIR / f"{slug}.png"
+
+    if out_file.exists() and out_file.stat().st_size > 1000:
+        return Response(
+            content=out_file.read_bytes(),
+            media_type="image/png",
+            headers={"Cache-Control": "public, max-age=31536000, immutable"},
+        )
+
+    # Generate on-demand via Cloudflare Workers AI
+    cf_url = await fetch_cloudflare_image(clean)
+    if out_file.exists() and out_file.stat().st_size > 1000:
+        return Response(
+            content=out_file.read_bytes(),
+            media_type="image/png",
+            headers={"Cache-Control": "public, max-age=31536000, immutable"},
+        )
+
+    # Fallback to Unsplash / Wikipedia redirect
+    alt = await fetch_scraped_image(clean) or await fetch_wikipedia_image(clean)
+    if alt:
+        return Response(status_code=302, headers={"Location": alt, "Cache-Control": "public, max-age=86400"})
+
+    raise HTTPException(status_code=404, detail="Image generation pending or not found")
 
 
 # ---------------------------------------------------------------------------
