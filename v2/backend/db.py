@@ -162,6 +162,15 @@ def init_db() -> None:
                     value TEXT
                 );
 
+                CREATE TABLE IF NOT EXISTS dish_image_cache (
+                    dish_key    VARCHAR(120) PRIMARY KEY,
+                    image_url   TEXT,
+                    image_bytes BYTEA,
+                    mime_type   VARCHAR(50) DEFAULT 'image/jpeg',
+                    created_at  TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_dish_image_cache_key ON dish_image_cache(dish_key);
                 CREATE INDEX IF NOT EXISTS idx_orders_menu     ON orders(menu_id);
                 CREATE INDEX IF NOT EXISTS idx_orders_status   ON orders(status);
                 CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders(customer_id);
@@ -204,7 +213,7 @@ def init_db() -> None:
 
 def _verify_tables() -> None:
     required = {
-        "menus", "tables", "customers", "orders", "order_items", "settings", 
+        "menus", "tables", "customers", "orders", "order_items", "settings", "dish_image_cache",
         "er_reviews", "er_competitors", "er_config", "users", "provider_profiles"
     }
     conn = _connect(row_factory=False)
@@ -584,6 +593,50 @@ def update_dining_sessions_plan(plan: str, user_id: str | None = None) -> None:
 
 def row_to_dict(row) -> dict | None:
     return dict(row) if row else None
+
+
+# ---------------------------------------------------------------------------
+# Dish Image Cache Helpers (Neon PostgreSQL Persistent Storage)
+# ---------------------------------------------------------------------------
+
+def get_cached_dish_image(dish_key: str) -> dict | None:
+    """
+    Retrieve cached dish image URL or raw image bytes from Neon PostgreSQL.
+    """
+    try:
+        with db_cursor(commit=False) as cur:
+            cur.execute(
+                "SELECT dish_key, image_url, image_bytes, mime_type FROM dish_image_cache WHERE dish_key = %s LIMIT 1",
+                (dish_key,)
+            )
+            row = cur.fetchone()
+            if row:
+                return dict(row)
+    except Exception as e:
+        logger.warning(f"get_cached_dish_image error: {e}")
+    return None
+
+def set_cached_dish_image(dish_key: str, image_url: str | None = None, image_bytes: bytes | None = None, mime_type: str = "image/jpeg") -> None:
+    """
+    Save dish image URL or compressed binary image into Neon PostgreSQL permanently.
+    """
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                """
+                INSERT INTO dish_image_cache (dish_key, image_url, image_bytes, mime_type, created_at)
+                VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
+                ON CONFLICT (dish_key) DO UPDATE
+                SET image_url = COALESCE(EXCLUDED.image_url, dish_image_cache.image_url),
+                    image_bytes = COALESCE(EXCLUDED.image_bytes, dish_image_cache.image_bytes),
+                    mime_type = EXCLUDED.mime_type,
+                    created_at = CURRENT_TIMESTAMP
+                """,
+                (dish_key, image_url, psycopg2.Binary(image_bytes) if image_bytes else None, mime_type)
+            )
+    except Exception as e:
+        logger.warning(f"set_cached_dish_image error: {e}")
+
 
 
 

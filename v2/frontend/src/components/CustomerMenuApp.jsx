@@ -40,15 +40,17 @@ export function sanitizeDishImageUrl(url, dishName, categoryName) {
   return url;
 }
 
-function DishImage({ item, theme, accent }) {
+function DishImage({ item, theme, accent, priority = false }) {
   const fallbackUrl = useMemo(() => getReliableDishImage(item.name, item.category), [item.name, item.category]);
   const initialUrl = useMemo(() => sanitizeDishImageUrl(item.image_url, item.name, item.category), [item.image_url, item.name, item.category]);
   const [imgSrc, setImgSrc] = useState(initialUrl);
   const [hasFailed, setHasFailed] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
     setImgSrc(sanitizeDishImageUrl(item.image_url, item.name, item.category));
     setHasFailed(false);
+    setIsLoaded(false);
   }, [item.image_url, item.name, item.category]);
 
   const handleError = () => {
@@ -59,15 +61,23 @@ function DishImage({ item, theme, accent }) {
   };
 
   return (
-    <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden bg-[#0a0a0a]">
+    <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden bg-white/[0.03] border border-white/5">
+      {/* Ultra-fast shimmer skeleton while image is downloading */}
+      {!isLoaded && (
+        <div className="absolute inset-0 bg-gradient-to-r from-white/[0.02] via-white/[0.08] to-white/[0.02] animate-pulse" />
+      )}
       <img
         src={imgSrc}
         alt={item.name}
+        onLoad={() => setIsLoaded(true)}
         onError={handleError}
-        loading="lazy"
-        className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+        loading={priority ? 'eager' : 'lazy'}
+        decoding="async"
+        className={`w-full h-full object-cover transition-all duration-300 hover:scale-105 ${
+          isLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
+        }`}
       />
-      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
       {item.tags?.includes('popular') && (
         <span style={{ backgroundColor: accent }} className="absolute top-2 left-2 text-black text-[9px] font-mono font-black px-2 py-1 rounded-full flex items-center gap-1 shadow-md">
           <Star size={9} fill="black" /> POPULAR
@@ -519,7 +529,7 @@ function CustomerMenuApp({ session, settings = {} }) {
                       className="group relative bg-white/[0.04] backdrop-blur-xl border border-white/10 rounded-3xl overflow-hidden hover:border-white/25 hover:bg-white/[0.07] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_20px_60px_rgba(0,0,0,0.5)]"
                     >
                       <div className="p-3 pb-0">
-                        <DishImage item={item} theme={cat.theme || settings.default_theme} accent={categoryTheme.accent} />
+                        <DishImage item={item} theme={cat.theme || settings.default_theme} accent={categoryTheme.accent} priority={i < 4} />
                       </div>
                       <div className="p-5 pt-4">
                         <div className="flex justify-between items-start gap-3 mb-1.5">

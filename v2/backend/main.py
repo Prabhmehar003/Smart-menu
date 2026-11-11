@@ -29,7 +29,8 @@ from db import (
     init_db, db_cursor, row_to_dict,
     get_user_by_uid, get_user_by_email, upsert_user,
     update_user_profile, upsert_provider_profile,
-    save_dining_session, get_dining_session, update_dining_sessions_plan
+    save_dining_session, get_dining_session, update_dining_sessions_plan,
+    get_cached_dish_image, set_cached_dish_image
 )
 
 dotenv.load_dotenv()
@@ -269,7 +270,7 @@ def calculate_distance(lat1, lon1, lat2, lon2):
 def clean_dish_name(name: str) -> str:
     cleaned = re.sub(r"\([^)]*\)", "", name or "")
     cleaned = re.sub(
-        r"\b(spl|spl\.|special|veg|veg\.|non-veg|non-veg\.|family|best|hot|cold|fresh|signature)\b",
+        r"\b(spl|spl\.|special|veg|veg\.|non-veg|non-veg\.|family|best|hot|cold|fresh|signature|delicious|plate|platter|bowl|combo)\b",
         "",
         cleaned,
         flags=re.IGNORECASE,
@@ -286,7 +287,7 @@ async def fetch_scraped_image(dish_name: str) -> str | None:
     if cache_key in IMAGE_CACHE:
         return IMAGE_CACHE[cache_key]
     try:
-        async with httpx.AsyncClient(timeout=4.0) as http:
+        async with httpx.AsyncClient(timeout=3.5) as http:
             r = await http.get(
                 "https://api.unsplash.com/search/photos",
                 params={"query": f"{clean} food dish", "per_page": 1, "orientation": "squarish"},
@@ -294,10 +295,11 @@ async def fetch_scraped_image(dish_name: str) -> str | None:
             )
         if r.status_code == 200:
             results = r.json().get("results", [])
-            if results and results[0].get("urls", {}).get("regular"):
-                url = results[0]["urls"]["regular"]
-                IMAGE_CACHE[cache_key] = url
-                return url
+            if results and results[0].get("urls"):
+                url = results[0]["urls"].get("small") or results[0]["urls"].get("regular")
+                if url:
+                    IMAGE_CACHE[cache_key] = url
+                    return url
     except Exception:
         pass
     return None
@@ -308,7 +310,7 @@ async def fetch_wikipedia_image(dish_name: str) -> str | None:
     if cache_key in IMAGE_CACHE:
         return IMAGE_CACHE[cache_key]
     try:
-        async with httpx.AsyncClient(timeout=4.0) as client:
+        async with httpx.AsyncClient(timeout=3.5) as client:
             r = await client.get(
                 "https://en.wikipedia.org/w/api.php",
                 params={
@@ -316,7 +318,7 @@ async def fetch_wikipedia_image(dish_name: str) -> str | None:
                     "titles": clean,
                     "prop": "pageimages",
                     "format": "json",
-                    "pithumbsize": 800,
+                    "pithumbsize": 500,
                 },
             )
         if r.status_code == 200:
@@ -330,10 +332,10 @@ async def fetch_wikipedia_image(dish_name: str) -> str | None:
         pass
     return None
 
-async def fetch_cloudflare_image(dish_name: str, description: str = "") -> str | None:
+async def fetch_cloudflare_image_bytes(dish_name: str, description: str = "") -> bytes | None:
     """
     Tier 2 AI Generator: Uses Cloudflare Workers AI (@cf/bytedance/stable-diffusion-xl-lightning)
-    to generate studio-grade food photography in ~1.5s and saves to /static/dishes/.
+    Generates studio-grade culinary photography, optimized with Pillow into a ~35KB JPEG.
     """
     if not CLOUDFLARE_ACCOUNT_ID or not CLOUDFLARE_API_TOKEN:
         return None
@@ -342,26 +344,27 @@ async def fetch_cloudflare_image(dish_name: str, description: str = "") -> str |
     if not clean:
         clean = "gourmet restaurant food dish"
 
-    slug = re.sub(r"[^a-zA-Z0-9]", "_", clean.lower()).strip("_")[:40]
-    out_file = DISHES_DIR / f"{slug}.png"
-    if out_file.exists() and out_file.stat().st_size > 1000:
-        return f"/static/dishes/{slug}.png"
-
     url = f"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/bytedance/stable-diffusion-xl-lightning"
     headers = {
         "Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}",
         "Content-Type": "application/json",
     }
-    desc_part = f", {description.strip()[:60]}" if description and len(description.strip()) > 3 else ""
+    desc_part = f", {description.strip()[:50]}" if description and len(description.strip()) > 3 else ""
     prompt = f"gourmet plated {clean}{desc_part}, delicious restaurant culinary food photography, studio lighting, highly detailed, 4k"
 
     try:
         async with httpx.AsyncClient(timeout=25.0) as client:
             r = await client.post(url, headers=headers, json={"prompt": prompt})
             if r.status_code == 200 and r.content:
-                out_file.write_bytes(r.content)
-                logger.info("Cloudflare Workers AI generated and cached: %s", out_file.name)
-                return f"/static/dishes/{slug}.png"
+                from PIL import Image
+                import io
+                img = Image.open(io.BytesIO(r.content))
+                if img.mode in ("RGBA", "P"):
+                    img = img.convert("RGB")
+                img = img.resize((512, 512), Image.Resampling.LANCZOS)
+                buf = io.BytesIO()
+                img.save(buf, format="JPEG", quality=82, optimize=True)
+                return buf.getvalue()
             else:
                 logger.warning("Cloudflare AI generation status %s for '%s'", r.status_code, clean)
     except Exception as e:
@@ -377,24 +380,37 @@ async def resolve_dish_image(dish_name: str, description: str = "") -> str | Non
     if cache_key in IMAGE_CACHE:
         return IMAGE_CACHE[cache_key]
 
+    clean = clean_dish_name(dish_clean)
+    slug = re.sub(r"[^a-zA-Z0-9]", "_", clean.lower()).strip("_")[:50]
+    
+    # Check DB cache first
+    cached = get_cached_dish_image(slug)
+    if cached:
+        if cached.get("image_url"):
+            IMAGE_CACHE[cache_key] = cached["image_url"]
+            return cached["image_url"]
+        if cached.get("image_bytes"):
+            url = f"/api/dishes/image?name={urllib.parse.quote(clean)}"
+            IMAGE_CACHE[cache_key] = url
+            return url
+
     # Tier 1: Real photography search via Unsplash API (~150ms)
     url = await fetch_scraped_image(dish_clean)
-
-    # Tier 2: Cloudflare Workers AI generation (SDXL-Lightning ~1.5s)
-    if not url:
-        url = await fetch_cloudflare_image(dish_clean, description)
-
-    # Tier 3: Wikipedia Commons archive fallback
-    if not url:
-        url = await fetch_wikipedia_image(dish_clean)
-
-    # Fallback to dynamic on-demand generation endpoint
-    if not url:
-        import urllib.parse
-        url = f"/api/dishes/image?name={urllib.parse.quote(dish_clean)}"
-
     if url:
+        set_cached_dish_image(slug, image_url=url)
         IMAGE_CACHE[cache_key] = url
+        return url
+
+    # Tier 2: Wikipedia Commons (~150ms)
+    url = await fetch_wikipedia_image(dish_clean)
+    if url:
+        set_cached_dish_image(slug, image_url=url)
+        IMAGE_CACHE[cache_key] = url
+        return url
+
+    # Fallback to dynamic endpoint (served from CF generator + Postgres)
+    url = f"/api/dishes/image?name={urllib.parse.quote(clean)}"
+    IMAGE_CACHE[cache_key] = url
     return url
 
 async def enrich_menu_with_images(menu_data: dict) -> None:
@@ -427,35 +443,85 @@ async def enrich_menu_with_images(menu_data: dict) -> None:
 @app.get("/api/dishes/image")
 async def get_dish_image_stream(name: str = Query(...)):
     """
-    On-demand Cloudflare Workers AI dish image endpoint.
-    Serves from disk cache or generates via Cloudflare Workers AI on-the-fly.
+    On-demand dish image endpoint.
+    1. Local disk cache (0ms)
+    2. Neon PostgreSQL DB cache (10ms)
+    3. Unsplash instant match (302 redirect ~100ms)
+    4. Wikipedia match (302 redirect ~150ms)
+    5. Cloudflare Workers AI generation (saved to DB and disk) (~1.5s)
     """
     clean = clean_dish_name(name)
-    slug = re.sub(r"[^a-zA-Z0-9]", "_", clean.lower()).strip("_")[:40]
-    out_file = DISHES_DIR / f"{slug}.png"
+    slug = re.sub(r"[^a-zA-Z0-9]", "_", clean.lower()).strip("_")[:50]
+    out_file = DISHES_DIR / f"{slug}.jpg"
+    legacy_file = DISHES_DIR / f"{slug}.png"
 
-    if out_file.exists() and out_file.stat().st_size > 1000:
+    # 1. Local disk cache (0ms)
+    if out_file.exists() and out_file.stat().st_size > 500:
         return Response(
             content=out_file.read_bytes(),
+            media_type="image/jpeg",
+            headers={"Cache-Control": "public, max-age=31536000, immutable"},
+        )
+    if legacy_file.exists() and legacy_file.stat().st_size > 500:
+        return Response(
+            content=legacy_file.read_bytes(),
             media_type="image/png",
             headers={"Cache-Control": "public, max-age=31536000, immutable"},
         )
 
-    # Generate on-demand via Cloudflare Workers AI
-    cf_url = await fetch_cloudflare_image(clean)
-    if out_file.exists() and out_file.stat().st_size > 1000:
+    # 2. Check persistent PostgreSQL DB cache (10ms)
+    cached = get_cached_dish_image(slug)
+    if cached:
+        if cached.get("image_url"):
+            return Response(
+                status_code=302,
+                headers={"Location": cached["image_url"], "Cache-Control": "public, max-age=31536000, immutable"},
+            )
+        if cached.get("image_bytes"):
+            raw = bytes(cached["image_bytes"])
+            try:
+                out_file.write_bytes(raw)
+            except Exception:
+                pass
+            return Response(
+                content=raw,
+                media_type=cached.get("mime_type") or "image/jpeg",
+                headers={"Cache-Control": "public, max-age=31536000, immutable"},
+            )
+
+    # 3. Check Unsplash instant match (~100ms)
+    unsplash_url = await fetch_scraped_image(clean)
+    if unsplash_url:
+        set_cached_dish_image(slug, image_url=unsplash_url)
         return Response(
-            content=out_file.read_bytes(),
-            media_type="image/png",
+            status_code=302,
+            headers={"Location": unsplash_url, "Cache-Control": "public, max-age=31536000, immutable"},
+        )
+
+    # 4. Check Wikipedia Commons (~150ms)
+    wiki_url = await fetch_wikipedia_image(clean)
+    if wiki_url:
+        set_cached_dish_image(slug, image_url=wiki_url)
+        return Response(
+            status_code=302,
+            headers={"Location": wiki_url, "Cache-Control": "public, max-age=31536000, immutable"},
+        )
+
+    # 5. Cloudflare Workers AI generation (~1.5s)
+    cf_bytes = await fetch_cloudflare_image_bytes(clean)
+    if cf_bytes:
+        try:
+            out_file.write_bytes(cf_bytes)
+        except Exception:
+            pass
+        set_cached_dish_image(slug, image_bytes=cf_bytes, mime_type="image/jpeg")
+        return Response(
+            content=cf_bytes,
+            media_type="image/jpeg",
             headers={"Cache-Control": "public, max-age=31536000, immutable"},
         )
 
-    # Fallback to Unsplash / Wikipedia redirect
-    alt = await fetch_scraped_image(clean) or await fetch_wikipedia_image(clean)
-    if alt:
-        return Response(status_code=302, headers={"Location": alt, "Cache-Control": "public, max-age=86400"})
-
-    raise HTTPException(status_code=404, detail="Image generation pending or not found")
+    raise HTTPException(status_code=404, detail="Image not available")
 
 
 # ---------------------------------------------------------------------------
@@ -954,36 +1020,37 @@ def clean_and_parse_json(content: str) -> dict:
     except Exception:
         pass
 
-    # Pass 5: Handle truncated JSON (balance open braces and brackets)
-    in_quote = False
-    escaped = False
-    for ch in cleaned_quotes:
-        if ch == "\\" and not escaped:
-            escaped = True
-            continue
-        if ch == "\"" and not escaped:
-            in_quote = not in_quote
+    # Helper: Balance JSON brackets and braces using stack
+    def _balance_json(s: str) -> str:
+        stack = []
+        in_str = False
         escaped = False
-    
-    balanced = cleaned_quotes
-    if in_quote:
-        balanced += "\""
-    
-    balanced = re.sub(r",\s*$", "", balanced)
-    open_sq = balanced.count("[") - balanced.count("]")
-    open_cu = balanced.count("{") - balanced.count("}")
-    if open_sq > 0:
-        balanced += "]" * open_sq
-    if open_cu > 0:
-        balanced += "}" * open_cu
-    balanced = re.sub(r",\s*([\]}])", r"\1", balanced)
+        for char in s:
+            if char == '"' and not escaped:
+                in_str = not in_str
+            elif not in_str:
+                if char in "{[":
+                    stack.append("}" if char == "{" else "]")
+                elif char in "}]" and stack and stack[-1] == char:
+                    stack.pop()
+            escaped = (char == "\\" and not escaped)
+        res = s + ('"' if in_str else '')
+        res = re.sub(r",\s*$", "", res)
+        closing = "".join(reversed(stack))
+        return res + closing
 
-    try:
-        parsed = json.loads(balanced)
-        if isinstance(parsed, dict) and "categories" in parsed:
-            return parsed
-    except Exception:
-        pass
+    # Pass 5: Handle truncated JSON via bracket stack recovery
+    last_item_brace = cleaned.rfind("}")
+    if last_item_brace != -1:
+        prefix = cleaned[:last_item_brace+1]
+        repaired = _balance_json(prefix)
+        repaired = re.sub(r",\s*([\]}])", r"\1", repaired)
+        try:
+            parsed = json.loads(repaired)
+            if isinstance(parsed, dict) and "categories" in parsed:
+                return parsed
+        except Exception:
+            pass
 
     # Pass 6: Fallback regex extractor for items & categories
     items = []
@@ -1026,18 +1093,18 @@ async def process_menu(
     image_bytes = await file.read()
     mime_type = file.content_type or "image/jpeg"
 
-    # Optimize and resize high-res smartphone photos (>2048px) to reduce payload size and prevent timeouts
+    # Optimize and resize high-res smartphone photos while preserving small menu typography
     try:
         from PIL import Image
         import io
         img = Image.open(io.BytesIO(image_bytes))
         if img.mode in ("RGBA", "P"):
             img = img.convert("RGB")
-        max_dim = 2048
+        max_dim = 3000
         if img.width > max_dim or img.height > max_dim:
             img.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
             buf = io.BytesIO()
-            img.save(buf, format="JPEG", quality=85, optimize=True)
+            img.save(buf, format="JPEG", quality=90, optimize=True)
             image_bytes = buf.getvalue()
             mime_type = "image/jpeg"
     except Exception as img_prep_err:
@@ -1045,9 +1112,34 @@ async def process_menu(
 
     base64_image = base64.b64encode(image_bytes).decode()
 
+    system_prompt = (
+        "You are an expert restaurant menu digitizer and professional OCR engine. "
+        "Your task is to extract 100% of all menu items from the image with complete completeness. "
+        "Never omit, summarize, truncate, or drop any dishes, drinks, or sections. "
+        "Output strictly valid JSON matching the requested schema."
+    )
+
     prompt = """
-    Extract the complete menu data from this image.
-    Return STRICTLY valid JSON with this exact schema:
+    Extract the COMPLETE and EXHAUSTIVE menu data from this image.
+
+    CRITICAL REQUIREMENTS (NO DISHES LEFT BEHIND):
+    1. EXHAUSTIVE EXTRACTION (100% of items):
+       - Extract EVERY SINGLE food, beverage, combo, appetizer, main, side, bread, and dessert item shown anywhere on the menu.
+       - Scan every column (left, center, right), every section, box, header, and footer.
+       - DO NOT skip, summarize, or abbreviate any dishes.
+
+    2. CATEGORIZATION:
+       - Group every item under its explicit category printed on the menu (e.g., "Starters", "Biryani", "Curries", "Breads", "Desserts", "Beverages", "Milk Shake & Ice Cream").
+       - If items are listed without an explicit header, group them logically into an appropriate section.
+
+    3. PRICES & VARIANTS:
+       - Extract the numeric price (e.g. 150 from "150/-" or "Rs 150" or "$12.50"). If no price is visible, use 0.0.
+       - If multiple sizes are listed (e.g. Half / Full or Small / Large), create a separate entry for each size variation (e.g. "Chicken Biryani (Half)" and "Chicken Biryani (Full)").
+
+    4. TOKEN EFFICIENCY:
+       - Keep "description" strictly to what is printed on the menu; if none is printed, use "" (empty string). Do NOT write long generated paragraphs. This guarantees that all dishes on the menu fit within the response without truncation.
+
+    Return STRICTLY valid JSON conforming to this schema:
     {
       "restaurant_name": "Restaurant Name",
       "categories": [
@@ -1056,47 +1148,47 @@ async def process_menu(
           "theme": "acid-lime",
           "items": [
             {
-              "name": "Item Name",
+              "name": "Exact Dish Name",
               "price": 10.50,
-              "description": "Details without unescaped double quotes",
-              "tags": ["spicy", "popular"]
+              "description": "",
+              "tags": ["popular"]
             }
           ]
         }
       ]
     }
-    Rules:
-    - Rotate themes: "acid-lime", "acid-cyan", "acid-pink".
-    - Do NOT include unescaped double quotes inside description or name.
-    - Do NOT include trailing commas.
-    - OUTPUT STRICTLY VALID JSON.
+    Rotate themes: "acid-lime", "acid-cyan", "acid-pink".
+    OUTPUT STRICTLY VALID JSON.
     """
 
     try:
         if not client:
             raise HTTPException(status_code=500, detail="GROQ_API_KEY is not configured on the server")
         model_name = os.environ.get("GROQ_MODEL", "qwen/qwen3.8-27b")
-        max_tokens_val = int(os.environ.get("GROQ_MAX_TOKENS", "4096"))
+        max_tokens_val = int(os.environ.get("GROQ_MAX_TOKENS", "8192"))
+
+        messages_payload = [
+            {"role": "system", "content": system_prompt},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:{mime_type};base64,{base64_image}"
+                        },
+                    },
+                ],
+            },
+        ]
 
         # Try with response_format={"type": "json_object"} first for strict grammar constraint
         try:
             completion = client.chat.completions.create(
                 model=model_name,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": prompt},
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:{mime_type};base64,{base64_image}"
-                                },
-                            },
-                        ],
-                    }
-                ],
-                temperature=0.1,
+                messages=messages_payload,
+                temperature=0.05,
                 max_tokens=max_tokens_val,
                 response_format={"type": "json_object"},
             )
@@ -1104,21 +1196,8 @@ async def process_menu(
             logger.info("Retrying completion without response_format constraint: %s", json_format_err)
             completion = client.chat.completions.create(
                 model=model_name,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": prompt},
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:{mime_type};base64,{base64_image}"
-                                },
-                            },
-                        ],
-                    }
-                ],
-                temperature=0.1,
+                messages=messages_payload,
+                temperature=0.05,
                 max_tokens=max_tokens_val,
             )
 
