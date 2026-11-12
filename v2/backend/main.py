@@ -280,11 +280,20 @@ def clean_culinary_terms(name: str, category: str = ""):
         "shezwan": "szechwan",
         "schezwan": "szechwan",
         "talooba": "falooda",
+        "praithna": "paratha",
+        "tost": "toast",
+        "chees": "cheese",
+        "chawal": "rice bowl",
+        "seek": "seekh",
+        "changzei": "changrezi",
+        "bhaaraji": "bhaji",
+        "bhaaji": "bhaji",
     }
     n = (name or "").lower()
     for wrong, right in corrections.items():
         n = re.sub(rf"\b{wrong}\b", right, n)
 
+    # Strip portion sizes like (Half), (Full), (4 PCS) for prompt clarity
     clean_name = re.sub(r"\([^)]*\)", "", n)
     # Strip marketing buzzwords ONLY, while PRESERVING essential food identity terms (veg, non-veg, fresh, hot, cold, crispy, dum, etc.)
     clean_name = re.sub(
@@ -298,34 +307,12 @@ def clean_culinary_terms(name: str, category: str = ""):
 
     clean_cat = re.sub(r"[^a-zA-Z\s]", " ", category or "").strip().lower()
 
-    # Formulate precise category-aware query for search engines
-    if any(w in clean_cat for w in ["shake", "ice cream", "dessert", "falooda"]):
-        search_query = f"{clean_name} milkshake dessert"
-    elif any(w in clean_cat for w in ["lime", "juice", "beverage", "drink", "soda"]):
-        search_query = f"{clean_name} fresh lime juice cooler"
-    elif "parotta" in clean_cat or "bread" in clean_cat or "roti" in clean_cat:
-        search_query = f"{clean_name} parotta flatbread"
-    elif "fried rice" in clean_cat or "rice" in clean_cat:
-        search_query = f"{clean_name} fried rice wok bowl"
-    elif "fish" in clean_cat or "seafood" in clean_cat:
-        search_query = f"{clean_name} fish seafood dish"
-    elif "mutton" in clean_cat:
-        search_query = f"{clean_name} mutton meat curry dish"
-    elif "chicken" in clean_cat:
-        search_query = f"{clean_name} chicken culinary dish"
-    elif "chinese" in clean_cat:
-        search_query = f"{clean_name} Indo Chinese appetizer dish"
-    elif clean_cat:
-        search_query = f"{clean_name} {clean_cat} food dish"
-    else:
-        search_query = f"{clean_name} restaurant dish"
-
-    return clean_name.title(), clean_cat.title(), " ".join(search_query.split())
+    return clean_name.title(), clean_cat.title(), clean_name.title()
 
 def make_dish_slug(dish_name: str, category: str = "") -> str:
     clean_name, clean_cat, _ = clean_culinary_terms(dish_name, category)
     combined = f"{clean_cat}_{clean_name}".strip("_")
-    return re.sub(r"[^a-zA-Z0-9]+", "_", combined.lower()).strip("_")[:60]
+    return re.sub(r"[^a-zA-Z0-9]+", "_", combined.lower()).strip("_")[:70]
 
 def build_cloudflare_prompt(dish_name: str, category: str = "", description: str = "") -> str:
     clean_name, clean_cat, _ = clean_culinary_terms(dish_name, category)
@@ -333,35 +320,24 @@ def build_cloudflare_prompt(dish_name: str, category: str = "", description: str
     cat_l = (category or "").strip().lower()
     desc_part = f", {description.strip()[:60]}" if description and len(description.strip()) > 3 else ""
 
-    # Granular dish dictionary for exact culinary styling (prevents style drift)
-    if "veg manchurian" in name_l:
-        framing = "authentic Indo-Chinese veg manchurian, deep-fried crispy golden vegetable dumplings (manchurian balls) simmered in dark, glossy, savory soya-garlic-ginger gravy with chopped fresh spring onions and cilantro, served in a ceramic bowl"
-    elif "gobi manchurian" in name_l:
-        framing = "authentic Indo-Chinese gobi manchurian, deep-fried crispy cauliflower florets coated in glossy dark soya garlic chili manchurian sauce with chopped spring onions, ceramic serving bowl"
-    elif "chilli gobi" in name_l:
-        framing = "crispy cauliflower florets tossed with diced red and green bell peppers, slit green chilies, onions in spicy dark soya chili sauce, restaurant white platter"
-    elif "mushroom manchurian" in name_l:
-        framing = "authentic Indo-Chinese mushroom manchurian, batter-fried whole button mushrooms tossed in dark savory soya garlic sauce with green chilies and spring onions, white bowl"
-    elif "fish manchurian" in name_l:
-        framing = "crispy batter-fried boneless fish cubes tossed in tangy dark soya garlic manchurian gravy with chopped scallions"
-    elif "chicken manchurian" in name_l:
-        framing = "crispy boneless chicken bites simmered in glossy dark soya garlic manchurian gravy with spring onions, white bowl"
-    elif "mushroom gravy" in name_l or "mushroom curry" in name_l or "mushroom masala" in name_l:
-        framing = "rich Indian mushroom masala gravy curry, sliced button mushrooms cooked in thick spicy onion tomato brown curry, garnished with fresh cilantro, copper handi bowl with naan"
-    elif "crispy veg" in name_l:
-        framing = "authentic Indo-Chinese crispy fried vegetables starter, golden battered crunchy cauliflower florets baby corn and bell peppers tossed in wok with spring onions, served on a white ceramic plate with sweet chili sauce"
-    elif "dragon chicken" in name_l:
-        framing = "crispy batter-fried tender chicken strips tossed in fiery sweet-spicy red dragon sauce with roasted cashews and scallions, garnished on an artisan plate"
-    elif "chilli chicken" in name_l:
-        framing = "crispy golden boneless chicken bites tossed with crunchy bell peppers, onions, green chilies, and savory dark soya chili sauce"
-    elif "szechwan chicken" in name_l or "schezwan chicken" in name_l:
-        framing = "tender chicken chunks stir-fried in vibrant spicy red Szechwan pepper sauce with fresh vegetables and spring onions"
-    elif "ginger chicken" in name_l:
-        framing = "tender chicken pieces braised in aromatic fresh ginger garlic gravy with spring onions and fresh herbs"
-    elif "shawarma roll" in name_l:
-        framing = "tightly rolled warm flatbread shawarma wrap packed with seasoned sliced chicken shawarma, garlic toum sauce, and pickled cucumber, wrapped in paper"
-    elif "shawarma plate" in name_l:
-        framing = "abundant platter of carved seasoned roasted chicken shawarma meat with pita bread triangles, crispy french fries, creamy garlic dip, and pickles"
+    # Comprehensive Culinary Dictionary (100% dish-specific and category-accurate)
+    # 1. Parathas & Flatbreads
+    if "aloo paratha" in name_l:
+        framing = "authentic Punjabi aloo paratha, golden crispy griddled whole wheat flatbread stuffed with spiced potato filling, melting cube of white butter on top, served with fresh curd and mango pickle"
+    elif "paneer paratha" in name_l:
+        framing = "authentic paneer paratha, golden-brown whole wheat flatbread stuffed with crumbled spiced cottage cheese paneer, garnished with butter, served with mint chutney and curd"
+    elif "onion paratha" in name_l or "pyaz paratha" in name_l:
+        framing = "authentic Punjabi pyaz paratha, griddled whole wheat flatbread stuffed with finely chopped spiced onions, green chilies, cilantro and a pat of butter"
+    elif "gobhi paratha" in name_l or "gobi paratha" in name_l:
+        framing = "crispy griddled whole wheat flatbread stuffed with grated spiced cauliflower florets, served with yellow butter and mixed pickle"
+    elif "onion aloo paratha" in name_l or "aloo onion paratha" in name_l:
+        framing = "crispy griddled paratha stuffed with spicy mashed potatoes and caramelized onions, melting butter on top"
+    elif "onion paneer paratha" in name_l:
+        framing = "flaky griddled paratha stuffed with seasoned cottage cheese paneer and diced onions, served with curd"
+    elif "plain paratha" in name_l:
+        framing = "flaky golden-brown layered triangle whole wheat plain paratha with a pat of fresh white butter"
+    elif "laccha paratha" in name_l or "laccha praithna" in name_l:
+        framing = "crispy spiral-coiled multi-layered whole wheat flatbread laccha paratha brushed with ghee"
     elif "kothu parotta" in name_l:
         framing = "shredded layered flaky parotta stir-fried on a flat iron tava with onions, tomatoes, green chilies, spicy salna gravy and cilantro"
     elif "veechu parotta" in name_l or "open veechu" in name_l:
@@ -374,18 +350,164 @@ def build_cloudflare_prompt(dish_name: str, category: str = "", description: str
         framing = f"golden-brown flaky layered spiral South Indian {clean_name} on a fresh banana leaf, served with aromatic salna curry gravy in a small bowl"
     elif "dosa" in name_l:
         framing = f"crisp golden South Indian {clean_name} on a banana leaf served with coconut chutney, sambar, and tomato chutney"
-    elif "chappathi" in name_l or "roti" in name_l:
-        framing = f"soft hot puffed whole wheat {clean_name} flatbreads on a plate with fragrant curry"
-    elif "idliyappam" in name_l or "idiyappam" in name_l:
-        framing = "delicate steamed rice string hoppers (idiyappam) served on a banana leaf alongside a fragrant bowl of chicken gravy"
-    elif "chicken gravy" in name_l or "chicken curry" in name_l:
-        framing = "rich spiced chicken curry in thick onion tomato masala gravy, garnished with fresh cilantro in a serving bowl"
+
+    # 2. Breakfast, Snacks & Street Food
+    elif "chole bhature" in name_l:
+        framing = "authentic North Indian chole bhature, two large golden puffy deep-fried bhatura breads served with dark spicy chickpea curry in a copper katori, pickled onions and green chili"
+    elif "poha" in name_l:
+        framing = "authentic Indian breakfast poha, fluffy yellow tempered flattened rice with mustard seeds, curry leaves, roasted peanuts, garnished with crispy sev fresh coriander and lemon wedge"
+    elif "pav bhaji" in name_l or "pay bhaaji" in name_l or "pay bhaaraji" in name_l:
+        framing = "rich spiced mashed mixed vegetable bhaji topped with a generous melting butter cube, served with two toasted buttery pav buns, diced onions and lemon"
+    elif "aloo puri" in name_l or "puri aloo" in name_l:
+        framing = "puffed crispy golden puris served with tangy spicy potato tomato curry (aloo rasedar) in a traditional bowl"
+    elif "bread butter" in name_l:
+        framing = "crisp toasted golden bread slices spread with creamy melting yellow butter"
+    elif "cheese garlic" in name_l or "bread cheese garlic" in name_l:
+        framing = "golden toasted crusty bread slices topped with melted bubbly mozzarella cheese, minced roasted garlic, and chili flakes"
+    elif "garlic bread" in name_l or "bread garlic" in name_l:
+        framing = "toasted rustic baguette slices brushed with roasted garlic herb butter and parsley"
+    elif "masala cheese omelette" in name_l or "cheese omelette" in name_l:
+        framing = "folded fluffy golden omelette oozing with melted cheese, diced onions and green chilies, served with toasted bread"
+    elif "masala omelette" in name_l:
+        framing = "fluffy golden pan-fried Indian masala omelette with onions, tomatoes, green chilies and cilantro, served with toasted bread"
+    elif "omelette" in name_l or "omlette" in name_l:
+        framing = "classic golden fluffy folded egg omelette with fresh herbs, served on a white breakfast plate"
+    elif "pasta with red sauce" in name_l:
+        framing = "steaming bowl of penne pasta coated in rich tangy Italian tomato basil marinara sauce, garnished with parmesan cheese"
+    elif "pasta with mix sauce" in name_l:
+        framing = "steaming penne pasta tossed in creamy pink blush sauce (marinara and alfredo blend), topped with herbs and parmesan"
+    elif "pasta with white sauce" in name_l:
+        framing = "steaming penne pasta in velvety rich creamy garlic alfredo sauce with sautéed mushrooms and herbs"
+    elif "sandwich" in name_l or "tost" in name_l or "toast" in name_l:
+        framing = f"gourmet toasted panini sandwich {clean_name} cut in diagonal halves showing vibrant layered filling and melted cheese with crisp grill marks, served with mint dip"
+
+    # 3. North Indian Main Course (Vegetarian)
+    elif "dal makhani" in name_l or "dal makkhani" in name_l:
+        framing = "authentic Punjabi dal makhani, creamy slow-cooked black lentils and kidney beans simmered with butter and fresh cream in a copper handi bowl"
+    elif "dal tadka" in name_l or "yellow dal" in name_l:
+        framing = "steaming yellow toor dal tempered with sizzling ghee, cumin seeds, garlic, dried red chilies, and fresh coriander in a traditional bowl"
+    elif "rajma masala" in name_l:
+        framing = "authentic Punjabi rajma masala, tender red kidney beans cooked in a thick spicy onion tomato ginger gravy in a ceramic bowl"
+    elif "paneer butter masala" in name_l:
+        framing = "cubes of soft cottage cheese paneer simmered in a rich silky creamy tomato cashew butter gravy with fresh cream swirl"
+    elif "shahi paneer" in name_l:
+        framing = "royal Indian shahi paneer cubes in a rich fragrant creamy cashew and saffron infused gravy"
+    elif "kadai paneer" in name_l:
+        framing = "succulent paneer cubes and crunchy bell peppers tossed in spicy freshly ground kadai coriander masala gravy"
+    elif "matar paneer" in name_l:
+        framing = "tender paneer cubes and green peas simmered in a spiced onion tomato gravy, garnished with coriander"
+    elif "palak paneer" in name_l:
+        framing = "soft paneer cubes simmered in vibrant velvety spiced spinach gravy (palak puree) with a swirl of cream"
+    elif "chilli paneer" in name_l:
+        framing = "crispy golden batter-fried cottage cheese paneer cubes tossed in spicy dark soya chili sauce with crunchy bell peppers and onions"
+    elif "soya chaap" in name_l:
+        framing = "marinated tender soya chaap chunks cooked in a rich spiced tandoori masala gravy, garnished with ginger"
+    elif "aloo gobhi" in name_l or "aloo gobi" in name_l:
+        framing = "dry-roasted potatoes and cauliflower florets seasoned with ginger juliennes, turmeric, and fresh cilantro"
+    elif "mix veg" in name_l or "mixed veg" in name_l:
+        framing = "colorful assorted vegetables cooked in a rich aromatic North Indian spiced gravy"
+    elif "mushroom masala" in name_l or "mushroom gravy" in name_l or "mushroom curry" in name_l:
+        framing = "rich Indian mushroom masala gravy curry, sliced button mushrooms cooked in thick spicy onion tomato brown curry, garnished with fresh cilantro, copper handi bowl with naan"
+    elif "chole masala" in name_l:
+        framing = "spicy dark chickpea curry simmered in fragrant roasted spices, garnished with ginger juliennes and green chilies"
+
+    # 4. Kulchas & Rice Combos
+    elif "amritsari kulcha" in name_l:
+        framing = "crisp tandoor-baked flaky stuffed Amritsari kulcha with blistered crust, served with spicy chole, pickled onions, and creamy curd raita"
+    elif "aloo kulcha" in name_l:
+        framing = "flaky tandoor-baked kulcha flatbread stuffed with spiced potato filling, melting butter, served with chole and raita"
+    elif "paneer kulcha" in name_l:
+        framing = "golden blistered tandoori kulcha stuffed with seasoned paneer, served with spicy chole and raita"
+    elif "chole chawal" in name_l:
+        framing = "platter of steamed long-grain basmati rice served with aromatic spicy Punjabi chickpea curry, onions, and lemon"
+    elif "rajma chawal" in name_l:
+        framing = "steamed fluffy basmati rice served with rich Punjabi red kidney bean gravy and sliced raw onions"
+    elif "kadi chawal" in name_l or "kadhi chawal" in name_l:
+        framing = "fragrant basmati rice served with tangy yellow Punjabi yogurt kadhi with soft onion pakoras"
+
+    # 5. Kathi Rolls & Wraps
+    elif any(w in cat_l for w in ["kathi roll", "roll", "wrap"]) or "roll" in name_l:
+        framing = f"warm golden flaky paratha wrap tightly rolled with seasoned spiced {clean_name} filling, crunchy sliced red onions, chaat masala, and mint chutney, neatly paper-wrapped"
+
+    # 6. Indo-Chinese Starters & Mains
+    elif "french fries" in name_l:
+        framing = "golden crispy salted potato french fries in a modern serving dish with dipping sauce"
+    elif "honey chilli potato" in name_l:
+        framing = "golden crispy fried potato finger strips glazed in sweet spicy red chilli honey glaze, garnished with toasted sesame seeds and chopped scallions on a white plate"
+    elif "chilly crispy potato" in name_l or "chilli potato" in name_l:
+        framing = "crispy fried potato fingers tossed in savory spicy dark soya chili sauce with bell peppers and spring onions"
+    elif "veg manchurian" in name_l:
+        framing = "authentic Indo-Chinese veg manchurian, deep-fried crispy golden vegetable dumplings (manchurian balls) simmered in dark, glossy, savory soya-garlic-ginger gravy with chopped fresh spring onions and cilantro, served in a ceramic bowl"
+    elif "gobi manchurian" in name_l:
+        framing = "authentic Indo-Chinese gobi manchurian, deep-fried crispy cauliflower florets coated in glossy dark soya garlic chili manchurian sauce with chopped spring onions, ceramic serving bowl"
+    elif "chilli gobi" in name_l:
+        framing = "crispy cauliflower florets tossed with diced red and green bell peppers, slit green chilies, onions in spicy dark soya chili sauce, restaurant white platter"
+    elif "chilly mushroom" in name_l or "chilli mushroom" in name_l:
+        framing = "crispy batter-fried button mushrooms tossed in spicy dark soya garlic chili sauce with diced capsicum and scallions"
+    elif "mushroom manchurian" in name_l:
+        framing = "authentic Indo-Chinese mushroom manchurian, batter-fried whole button mushrooms tossed in dark savory soya garlic sauce with green chilies and spring onions, white bowl"
+    elif "crispy veg" in name_l:
+        framing = "authentic Indo-Chinese crispy fried vegetables starter, golden battered crunchy cauliflower florets baby corn and bell peppers tossed in wok with spring onions, served on a white ceramic plate with sweet chili sauce"
+    elif "crispy corn" in name_l:
+        framing = "golden batter-fried sweet corn kernels tossed with chopped green chilies, onions, chaat masala, and spring onions"
+    elif "spring roll" in name_l:
+        framing = "golden-brown crispy fried vegetable spring rolls cut in diagonal halves showing cabbage and carrot filling, served with sweet chili dip"
+    elif "momos" in name_l:
+        framing = "steaming hot delicate Tibetan momo dumplings served in a bamboo steamer with fiery red chili dipping sauce"
+    elif "dragon chicken" in name_l:
+        framing = "crispy batter-fried tender chicken strips tossed in fiery sweet-spicy red dragon sauce with roasted cashews and scallions, garnished on an artisan plate"
+    elif "chilli chicken" in name_l:
+        framing = "crispy golden boneless chicken bites tossed with crunchy bell peppers, onions, green chilies, and savory dark soya chili sauce"
+    elif "szechwan chicken" in name_l or "schezwan chicken" in name_l:
+        framing = "tender chicken chunks stir-fried in vibrant spicy red Szechwan pepper sauce with fresh vegetables and spring onions"
+    elif "ginger chicken" in name_l:
+        framing = "tender chicken pieces braised in aromatic fresh ginger garlic gravy with spring onions and fresh herbs"
+    elif "shawarma roll" in name_l:
+        framing = "tightly rolled warm flatbread shawarma wrap packed with seasoned sliced chicken shawarma, garlic toum sauce, and pickled cucumber, wrapped in paper"
+    elif "shawarma plate" in name_l:
+        framing = "abundant platter of carved seasoned roasted chicken shawarma meat with pita bread triangles, crispy french fries, creamy garlic dip, and pickles"
+    elif "hakka noodles" in name_l or "noodles" in name_l:
+        framing = f"stir-fried wok noodles {clean_name} with julienned vegetables, scallions, and savory Asian sauce"
+    elif "schezwan fried rice" in name_l or "szechwan fried rice" in name_l:
+        framing = f"spicy wok-tossed red schezwan {clean_name} with chili peppers, vibrant vegetables, and spring onions in a bowl"
+    elif "fried rice" in name_l:
+        framing = f"fluffy steaming wok-tossed {clean_name} with diced crisp vegetables, spring onions, and light seasoning in a ceramic bowl"
+
+    # 7. Tandoori & Non-Veg Main Course
+    elif "tandoori chicken" in name_l:
+        framing = "classic smoky tandoori chicken quarters with blistered charred red crust, served on a sizzling platter with onion rings, lemon, and mint chutney"
+    elif "tandoori afghani chicken" in name_l or "afghani chicken" in name_l:
+        framing = "creamy tandoor-roasted chicken pieces coated in velvety yogurt cashew cream marinade with black pepper and herbs"
+    elif "butter chicken" in name_l:
+        framing = "succulent tandoori chicken pieces simmered in rich creamy tomato butter cashew makhani gravy with fenugreek leaves (kasuri methi)"
+    elif "chicken korma" in name_l:
+        framing = "royal chicken pieces braised in a velvety yogurt almond cashew nut gravy with whole aromatic spices"
+    elif "chicken curry" in name_l:
+        framing = "traditional homestyle spicy chicken curry cooked with onions, tomatoes, and fresh herbs in a copper bowl"
+    elif "chicken masala" in name_l:
+        framing = "tender chicken chunks cooked in a thick spicy onion tomato masala gravy, garnished with coriander"
+    elif "kadai chicken" in name_l:
+        framing = "tender bone-in chicken cooked with chunky bell peppers, onions, and freshly roasted coriander kadai spices"
+    elif "chicken do pyaza" in name_l:
+        framing = "succulent chicken cooked in a rich spiced gravy with abundant caramelized onion petals"
+    elif "chicken haryali" in name_l:
+        framing = "grilled juicy chicken pieces marinated in vibrant fresh mint, cilantro, yogurt, and green chili paste"
+    elif "chicken kali mirch" in name_l:
+        framing = "tender chicken pieces simmered in a creamy white cashew gravy heavily seasoned with freshly crushed black peppercorns"
+    elif "chicken lababdar" in name_l:
+        framing = "chicken chunks cooked in a rich, luscious onion tomato gravy finished with grated paneer and fresh cream"
+    elif "chicken changrezi" in name_l or "chicken changzei" in name_l:
+        framing = "fiery Mughlai chicken cooked with roasted spices, tomatoes, and fried onions in a copper handi"
+    elif "mutton seekh kebab" in name_l or "seek kebab" in name_l:
+        framing = "chargrilled spiced minced mutton skewers with grill marks, served with fresh onion rings, mint chutney, and lemon"
     elif "mutton chukka" in name_l:
         framing = "tender dry-roasted mutton chunks coated in dark roasted pepper, caramelized shallots, and curry leaf masala"
     elif "mutton chops" in name_l:
         framing = "succulent seared mutton bone chops braised in rich thick spicy Indian masala gravy"
     elif "mutton fry" in name_l or "boti fry" in name_l:
         framing = f"crispy spiced pan-fried tender {clean_name} with aromatic whole spices, curry leaves, and coriander"
+
+    # 8. Seafood
     elif "fish fry" in name_l:
         framing = "South Indian spicy tava-fried fish steak with crisp red masala crust, served with lemon wedges and raw onion rings on a banana leaf"
     elif "fish curry" in name_l:
@@ -394,12 +516,20 @@ def build_cloudflare_prompt(dish_name: str, category: str = "", description: str
         framing = "crispy deep-red spiced boneless fish cubes garnished with fried curry leaves and green chilies"
     elif "prawn" in name_l:
         framing = f"succulent spiced {clean_name} pan-roasted with curry leaves, onions, and aromatic masala"
-    elif "schezwan fried rice" in name_l or "szechwan fried rice" in name_l:
-        framing = f"spicy wok-tossed red schezwan {clean_name} with chili peppers, vibrant vegetables, and spring onions in a bowl"
-    elif "fried rice" in name_l:
-        framing = f"fluffy steaming wok-tossed {clean_name} with diced crisp vegetables, spring onions, and light seasoning in a ceramic bowl"
-    elif "noodles" in name_l:
-        framing = f"stir-fried wok noodles {clean_name} with julienned vegetables, scallions, and savory Asian sauce"
+
+    # 9. Indian Breads
+    elif "butter naan" in name_l:
+        framing = "pillowy soft tandoor-baked teardrop naan flatbread with golden charred blisters, generously brushed with melted butter"
+    elif "plain naan" in name_l:
+        framing = "soft pillowy traditional oven-baked naan flatbread with light blisters"
+    elif "tandoori butter roti" in name_l or "tandoori roti" in name_l:
+        framing = "wholesome whole wheat flatbread baked on the walls of a tandoor oven, brushed with butter"
+    elif "tawa roti" in name_l:
+        framing = "soft puffed whole wheat phulka roti on a plate"
+    elif "chappathi" in name_l or "roti" in name_l:
+        framing = f"soft hot puffed whole wheat {clean_name} flatbreads on a plate with fragrant curry"
+
+    # 10. Desserts & Milkshakes
     elif "royal falooda" in name_l or "falooda" in name_l:
         framing = "tall glass of layered royal falooda dessert with rose syrup, basil seeds, silky vermicelli, chilled milk, topped with ice cream, nuts, and cherry"
     elif "spanish delite" in name_l:
@@ -430,6 +560,8 @@ def build_cloudflare_prompt(dish_name: str, category: str = "", description: str
         framing = "chocolate milkshake in a tall glass garnished with KitKat wafer finger bars and chocolate shavings"
     elif "badam" in name_l:
         framing = "warm golden saffron almond milk (badam milk) in a traditional glass garnished with slivered almonds and saffron strands"
+
+    # 11. Fresh Limes & Beverages
     elif "fresh lime" in name_l or "fresh limes" in name_l:
         framing = "chilled artisan glass of sparkling fresh lime juice with ice cubes, fresh lime wheel, mint sprig, condensation on glass"
     elif "ginger lime" in name_l:
@@ -444,7 +576,12 @@ def build_cloudflare_prompt(dish_name: str, category: str = "", description: str
         framing = "zesty fresh lime soda with a pinch of freshly cracked black pepper and rock salt, garnished with lime"
     elif "fruit salad" in name_l or "fruits salad" in name_l:
         framing = f"vibrant dessert bowl of fresh diced tropical fruits {clean_name} topped with sweet cream and honey"
-    # Category fallback
+
+    # Dynamic Category-Aware Fallbacks (Ensures ANY new dish is 100% relevant to its category)
+    elif any(w in cat_l for w in ["breakfast", "morning"]):
+        framing = f"authentic freshly prepared hot {clean_name} breakfast dish, appetizing culinary morning presentation, ceramic plate"
+    elif any(w in cat_l for w in ["chinese combo", "combo"]):
+        framing = f"abundant Indo-Chinese restaurant combo platter featuring {clean_name}, steaming fried rice and noodles with savory gravy in divided bowls"
     elif any(w in cat_l for w in ["shake", "ice cream", "dessert", "falooda"]):
         framing = f"cold refreshing dessert, tall glass of {clean_name} milkshake with creamy rich froth, fresh toppings, served with a straw and spoon"
     elif any(w in cat_l for w in ["lime", "juice", "beverage", "drink", "soda", "cooler"]):
@@ -459,48 +596,18 @@ def build_cloudflare_prompt(dish_name: str, category: str = "", description: str
         framing = f"succulent roasted {clean_name} tender meat dish with rich aromatic masala gravy, garnished with coriander"
     elif any(w in cat_l for w in ["chinese", "starter", "appetizer"]):
         framing = f"authentic Indo-Chinese {clean_name} dish tossed in wok with spring onions, garnished on a white ceramic platter"
-    elif any(w in cat_l for w in ["chicken"]):
+    elif any(w in cat_l for w in ["chicken", "nonveg"]):
         framing = f"gourmet plated {clean_name} chicken dish with aromatic spices, fresh herbs, restaurant culinary presentation"
+    elif any(w in cat_l for w in ["main course", "curry", "gravy"]):
+        framing = f"rich aromatic Indian {clean_name} curry in a copper handi bowl, garnished with fresh cilantro and ginger juliennes, served with naan"
     else:
         framing = f"gourmet plated {clean_name} {clean_cat} dish, delicious restaurant culinary presentation, white ceramic plate"
 
     return f"commercial food photography of {framing}{desc_part}, 4k ultra-detailed, studio food lighting, depth of field, appetizing masterpiece"
 
-_UNSPLASH_EXHAUSTED_UNTIL = 0
-
-async def fetch_scraped_image(dish_name: str, category: str = "") -> str | None:
-    global _UNSPLASH_EXHAUSTED_UNTIL
-    import time
-    if not UNSPLASH_ACCESS_KEY or time.time() < _UNSPLASH_EXHAUSTED_UNTIL:
-        return None
-    _, _, query = clean_culinary_terms(dish_name, category)
-    cache_key = f"unsplash_{re.sub(r'[^a-zA-Z0-9]', '_', query.lower())}"
-    if cache_key in IMAGE_CACHE:
-        return IMAGE_CACHE[cache_key]
-    try:
-        async with httpx.AsyncClient(timeout=2.5) as http:
-            r = await http.get(
-                "https://api.unsplash.com/search/photos",
-                params={"query": query, "per_page": 1, "orientation": "squarish"},
-                headers={"Authorization": f"Client-ID {UNSPLASH_ACCESS_KEY}"},
-            )
-        if r.status_code == 200:
-            results = r.json().get("results", [])
-            if results and results[0].get("urls"):
-                url = results[0]["urls"].get("small") or results[0]["urls"].get("regular")
-                if url:
-                    IMAGE_CACHE[cache_key] = url
-                    return url
-        elif r.status_code in (403, 429):
-            _UNSPLASH_EXHAUSTED_UNTIL = time.time() + 900
-            logger.info("Unsplash free-tier rate limit (50 req/hr) hit. Auto-backing off for 15m; prioritizing Cloudflare Workers AI.")
-    except Exception:
-        pass
-    return None
-
 async def fetch_cloudflare_image_bytes(dish_name: str, category: str = "", description: str = "") -> bytes | None:
     """
-    Tier 2 AI Generator: Uses Cloudflare Workers AI (@cf/bytedance/stable-diffusion-xl-lightning)
+    Tier 1 AI Generator: Uses Cloudflare Workers AI (@cf/bytedance/stable-diffusion-xl-lightning)
     Generates studio-grade culinary photography, strictly customized by category and dish name.
     """
     if not CLOUDFLARE_ACCOUNT_ID or not CLOUDFLARE_API_TOKEN:
@@ -534,7 +641,7 @@ async def fetch_cloudflare_image_bytes(dish_name: str, category: str = "", descr
                     img = img.convert("RGB")
                 img = img.resize((512, 512), Image.Resampling.LANCZOS)
                 buf = io.BytesIO()
-                img.save(buf, format="JPEG", quality=84, optimize=True)
+                img.save(buf, format="JPEG", quality=85, optimize=True)
                 val = buf.getvalue()
                 if len(val) > 4000:
                     return val
@@ -549,66 +656,68 @@ async def resolve_dish_image(dish_name: str, category: str = "", description: st
     dish_clean = (dish_name or "").strip()
     if not dish_clean:
         return None
-    slug = make_dish_slug(dish_clean, category)
-    if slug in IMAGE_CACHE:
-        return IMAGE_CACHE[slug]
+    return f"/api/dishes/image?name={urllib.parse.quote(dish_clean)}&category={urllib.parse.quote(category)}&v=3"
 
-    # 1. Check persistent DB cache first (0 network latency)
-    cached = get_cached_dish_image(slug)
-    if cached:
-        if cached.get("image_url") and not any(w in cached["image_url"] for w in ["wikimedia", "wikipedia"]):
-            IMAGE_CACHE[slug] = cached["image_url"]
-            return cached["image_url"]
-        if cached.get("image_bytes"):
-            url = f"/api/dishes/image?name={urllib.parse.quote(dish_clean)}&category={urllib.parse.quote(category)}&v=2"
-            IMAGE_CACHE[slug] = url
-            return url
+async def prewarm_menu_images(flat_items: list) -> None:
+    """
+    Background worker that pre-generates studio-grade images for newly uploaded menus
+    via Cloudflare Workers AI. Runs gently without blocking the upload response.
+    """
+    sem = asyncio.Semaphore(2)
 
-    # 2. Check local disk cache
-    out_file = DISHES_DIR / f"{slug}.jpg"
-    if out_file.exists() and out_file.stat().st_size > 500:
-        url = f"/api/dishes/image?name={urllib.parse.quote(dish_clean)}&category={urllib.parse.quote(category)}&v=2"
-        IMAGE_CACHE[slug] = url
-        return url
+    async def _gen_item(item, cat_name):
+        name = item.get("name", "").strip()
+        if not name:
+            return
+        slug = make_dish_slug(name, cat_name)
+        out_file = DISHES_DIR / f"{slug}.jpg"
+        if out_file.exists() and out_file.stat().st_size > 3000:
+            return
+        cached = get_cached_dish_image(slug)
+        if cached and cached.get("image_bytes") and len(cached["image_bytes"]) > 3000:
+            try:
+                out_file.write_bytes(bytes(cached["image_bytes"]))
+            except Exception:
+                pass
+            return
 
-    # 3. Check Tier 1: Unsplash search (for common generic food items)
-    url = await fetch_scraped_image(dish_clean, category)
-    if url:
-        set_cached_dish_image(slug, image_url=url)
-        IMAGE_CACHE[slug] = url
-        return url
+        async with sem:
+            try:
+                cf_bytes = await fetch_cloudflare_image_bytes(name, cat_name, item.get("description", ""))
+                if cf_bytes:
+                    try:
+                        out_file.write_bytes(cf_bytes)
+                    except Exception:
+                        pass
+                    set_cached_dish_image(slug, image_bytes=cf_bytes, mime_type="image/jpeg")
+            except Exception as e:
+                logger.warning("Prewarm image error for '%s' in '%s': %s", name, cat_name, e)
+            await asyncio.sleep(0.3)
 
-    # Default to high-speed dynamic endpoint (backed by Cloudflare Workers AI + disk/DB cache)
-    url = f"/api/dishes/image?name={urllib.parse.quote(dish_clean)}&category={urllib.parse.quote(category)}&v=2"
-    IMAGE_CACHE[slug] = url
-    return url
+    # Deduplicate items by slug before running
+    seen_slugs = set()
+    deduped_items = []
+    for item, cat_name in flat_items:
+        slug = make_dish_slug(item.get("name", ""), cat_name)
+        if slug not in seen_slugs:
+            seen_slugs.add(slug)
+            deduped_items.append((item, cat_name))
+
+    for item, cat_name in deduped_items:
+        await _gen_item(item, cat_name)
 
 async def enrich_menu_with_images(menu_data: dict) -> None:
     flat_items = []
+    import urllib.parse
     for cat in menu_data.get("categories", []):
         cat_name = cat.get("category_name", "")
         for item in cat.get("items", []):
+            item["image_url"] = f"/api/dishes/image?name={urllib.parse.quote(item.get('name', ''))}&category={urllib.parse.quote(cat_name)}&v=3"
             flat_items.append((item, cat_name))
-    if not flat_items:
-        return
 
-    semaphore = asyncio.Semaphore(10)
-
-    async def _resolve_with_sem(item, cat_name):
-        async with semaphore:
-            return await resolve_dish_image(item.get("name", ""), cat_name, item.get("description", ""))
-
-    tasks = [_resolve_with_sem(item, cat_name) for item, cat_name in flat_items]
-    resolved = await asyncio.gather(*tasks, return_exceptions=True)
-
-    seen_urls = set()
-    import urllib.parse
-    for (item, cat_name), url in zip(flat_items, resolved):
-        if isinstance(url, str) and url.startswith("http") and url not in seen_urls and not any(w in url for w in ["wikimedia", "wikipedia"]):
-            seen_urls.add(url)
-            item["image_url"] = url
-        else:
-            item["image_url"] = f"/api/dishes/image?name={urllib.parse.quote(item.get('name', ''))}&category={urllib.parse.quote(cat_name)}&v=2"
+    # Pre-warm images in background so newly uploaded menus get their studio images immediately
+    if flat_items:
+        asyncio.create_task(prewarm_menu_images(flat_items))
 
 
 @app.get("/api/dishes/image")
@@ -619,14 +728,14 @@ async def get_dish_image_stream(
     v: str = Query("")
 ):
     """
-    On-demand dish image endpoint with Category + Name precision.
+    On-demand dish image endpoint with 100% unique Category + Name precision.
     1. Local disk cache (0ms)
     2. Neon PostgreSQL DB cache (10ms)
-    3. Unsplash match with Category + Name (~100ms)
-    4. Cloudflare Workers AI generation with Category + Name prompt (~1.5s)
+    3. Cloudflare Workers AI bespoke generation (~1.5s)
+    Every single dish is guaranteed to have a unique, authentic culinary photograph.
     """
     slug = make_dish_slug(name, category)
-    raw_slug = re.sub(r"[^a-zA-Z0-9]+", "_", f"{category}_{name}".lower()).strip("_")[:60]
+    raw_slug = re.sub(r"[^a-zA-Z0-9]+", "_", f"{category}_{name}".lower()).strip("_")[:70]
     candidate_slugs = [slug] if slug == raw_slug else [slug, raw_slug]
 
     out_file = DISHES_DIR / f"{slug}.jpg"
@@ -634,7 +743,7 @@ async def get_dish_image_stream(
     # 1. Local disk cache (0ms)
     for s in candidate_slugs:
         f = DISHES_DIR / f"{s}.jpg"
-        if f.exists() and f.stat().st_size > 500:
+        if f.exists() and f.stat().st_size > 3000:
             return Response(
                 content=f.read_bytes(),
                 media_type="image/jpeg",
@@ -646,39 +755,23 @@ async def get_dish_image_stream(
     matched_slug = slug
     for s in candidate_slugs:
         cached = get_cached_dish_image(s)
-        if cached:
+        if cached and cached.get("image_bytes") and len(cached["image_bytes"]) > 3000:
             matched_slug = s
             break
 
-    if cached:
-        # Ignore legacy wikipedia/wikimedia entries
-        if cached.get("image_url") and not any(w in cached["image_url"] for w in ["wikimedia", "wikipedia"]):
-            return Response(
-                status_code=302,
-                headers={"Location": cached["image_url"], "Cache-Control": "public, max-age=31536000, immutable"},
-            )
-        if cached.get("image_bytes"):
-            raw = bytes(cached["image_bytes"])
-            try:
-                (DISHES_DIR / f"{matched_slug}.jpg").write_bytes(raw)
-            except Exception:
-                pass
-            return Response(
-                content=raw,
-                media_type=cached.get("mime_type") or "image/jpeg",
-                headers={"Cache-Control": "public, max-age=31536000, immutable"},
-            )
-
-    # 3. Check Unsplash with Category + Name (~100ms)
-    unsplash_url = await fetch_scraped_image(name, category)
-    if unsplash_url:
-        set_cached_dish_image(slug, image_url=unsplash_url)
+    if cached and cached.get("image_bytes") and len(cached["image_bytes"]) > 3000:
+        raw = bytes(cached["image_bytes"])
+        try:
+            (DISHES_DIR / f"{matched_slug}.jpg").write_bytes(raw)
+        except Exception:
+            pass
         return Response(
-            status_code=302,
-            headers={"Location": unsplash_url, "Cache-Control": "public, max-age=31536000, immutable"},
+            content=raw,
+            media_type=cached.get("mime_type") or "image/jpeg",
+            headers={"Cache-Control": "public, max-age=31536000, immutable"},
         )
 
-    # 4. Cloudflare Workers AI generation with Category + Name framing (~1.5s)
+    # 3. Cloudflare Workers AI generation with Category + Name framing (~1.5s)
     cf_bytes = await fetch_cloudflare_image_bytes(name, category, description)
     if cf_bytes:
         try:
