@@ -790,63 +790,65 @@ async def get_dish_image_stream(
     name: str = Query(...),
     category: str = Query(""),
     description: str = Query(""),
+    refresh: bool = Query(False),
     v: str = Query("")
 ):
     """
     On-demand dish image endpoint with 100% unique Category + Name precision.
-    0. In-memory RAM cache (<0.1ms)
-    1. Local disk cache (1ms)
-    2. Neon PostgreSQL DB cache (10ms)
+    0. In-memory RAM cache (<0.1ms) unless refresh=True
+    1. Neon PostgreSQL DB persistent cache (10ms)
+    2. Local disk cache (1ms)
     3. Cloudflare Workers AI bespoke generation with in-flight deduplication (~1.2s)
     """
     slug = make_dish_slug(name, category)
     raw_slug = re.sub(r"[^a-zA-Z0-9]+", "_", f"{category}_{name}".lower()).strip("_")[:70]
     candidate_slugs = [slug] if slug == raw_slug else [slug, raw_slug]
 
-    # 0. In-memory RAM cache (<0.1ms)
-    for s in candidate_slugs:
-        if s in IMAGE_CACHE:
-            return Response(
-                content=IMAGE_CACHE[s],
-                media_type="image/jpeg",
-                headers={"Cache-Control": "public, max-age=31536000, immutable"},
-            )
-
     out_file = DISHES_DIR / f"{slug}.jpg"
 
-    # 1. Local disk cache (1ms)
-    for s in candidate_slugs:
-        f = DISHES_DIR / f"{s}.jpg"
-        if f.exists() and f.stat().st_size > 3000:
-            raw = f.read_bytes()
-            IMAGE_CACHE[s] = raw
+    if not refresh:
+        # 0. In-memory RAM cache (<0.1ms)
+        for s in candidate_slugs:
+            if s in IMAGE_CACHE:
+                return Response(
+                    content=IMAGE_CACHE[s],
+                    media_type="image/jpeg",
+                    headers={"Cache-Control": "public, max-age=31536000, immutable"},
+                )
+
+        # 1. Check persistent PostgreSQL DB cache (10ms)
+        cached = None
+        matched_slug = slug
+        for s in candidate_slugs:
+            cached = get_cached_dish_image(s)
+            if cached and cached.get("image_bytes") and len(cached["image_bytes"]) > 3000:
+                matched_slug = s
+                break
+
+        if cached and cached.get("image_bytes") and len(cached["image_bytes"]) > 3000:
+            raw = bytes(cached["image_bytes"])
+            IMAGE_CACHE[matched_slug] = raw
+            try:
+                (DISHES_DIR / f"{matched_slug}.jpg").write_bytes(raw)
+            except Exception:
+                pass
             return Response(
                 content=raw,
-                media_type="image/jpeg",
+                media_type=cached.get("mime_type") or "image/jpeg",
                 headers={"Cache-Control": "public, max-age=31536000, immutable"},
             )
 
-    # 2. Check persistent PostgreSQL DB cache (10ms)
-    cached = None
-    matched_slug = slug
-    for s in candidate_slugs:
-        cached = get_cached_dish_image(s)
-        if cached and cached.get("image_bytes") and len(cached["image_bytes"]) > 3000:
-            matched_slug = s
-            break
-
-    if cached and cached.get("image_bytes") and len(cached["image_bytes"]) > 3000:
-        raw = bytes(cached["image_bytes"])
-        IMAGE_CACHE[matched_slug] = raw
-        try:
-            (DISHES_DIR / f"{matched_slug}.jpg").write_bytes(raw)
-        except Exception:
-            pass
-        return Response(
-            content=raw,
-            media_type=cached.get("mime_type") or "image/jpeg",
-            headers={"Cache-Control": "public, max-age=31536000, immutable"},
-        )
+        # 2. Local disk cache (1ms)
+        for s in candidate_slugs:
+            f = DISHES_DIR / f"{s}.jpg"
+            if f.exists() and f.stat().st_size > 3000:
+                raw = f.read_bytes()
+                IMAGE_CACHE[s] = raw
+                return Response(
+                    content=raw,
+                    media_type="image/jpeg",
+                    headers={"Cache-Control": "public, max-age=31536000, immutable"},
+                )
 
     # 3. Cloudflare Workers AI generation with in-flight request deduplication
     task = INFLIGHT_IMAGE_TASKS.get(slug)
