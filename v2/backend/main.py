@@ -5,6 +5,8 @@ import secrets
 import base64
 import re
 import math
+import time
+import urllib.parse
 import asyncio
 import logging
 import httpx
@@ -808,6 +810,13 @@ class TableRenameRequest(BaseModel):
     new_name: str
     menu_id: str | None = None
 
+class FinalizeMenuRequest(BaseModel):
+    menu_data: dict
+    num_tables: int = 5
+    admin_lat: float | None = None
+    admin_lon: float | None = None
+    restaurant_name: str | None = None
+
 class OrderItem(BaseModel):
     name: str
     price: float
@@ -1344,19 +1353,7 @@ def clean_and_parse_json(content: str) -> dict:
     raise ValueError(f"Could not parse valid JSON from AI response: {candidate[:150]}...")
 
 
-@app.post("/api/process-menu")
-async def process_menu(
-    request: Request,
-    file: UploadFile = File(...),
-    num_tables: int = Form(...),
-    admin_lat: float | None = Form(None),
-    admin_lon: float | None = Form(None),
-):
-    user = get_current_user_from_request(request)
-
-    image_bytes = await file.read()
-    mime_type = file.content_type or "image/jpeg"
-
+async def _extract_menu_from_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> dict:
     # Optimize and resize high-res smartphone photos while preserving small menu typography
     try:
         from PIL import Image
@@ -1425,69 +1422,75 @@ async def process_menu(
     OUTPUT STRICTLY VALID JSON.
     """
 
-    try:
-        if not client:
-            raise HTTPException(status_code=500, detail="GROQ_API_KEY is not configured on the server")
-        model_name = os.environ.get("GROQ_MODEL", "qwen/qwen3.8-27b")
-        max_tokens_val = int(os.environ.get("GROQ_MAX_TOKENS", "8192"))
+    if not client:
+        raise HTTPException(status_code=500, detail="GROQ_API_KEY is not configured on the server")
+    model_name = os.environ.get("GROQ_MODEL", "qwen/qwen3.8-27b")
+    max_tokens_val = int(os.environ.get("GROQ_MAX_TOKENS", "8192"))
 
-        messages_payload = [
-            {"role": "system", "content": system_prompt},
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": prompt},
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:{mime_type};base64,{base64_image}"
-                        },
+    messages_payload = [
+        {"role": "system", "content": system_prompt},
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": prompt},
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:{mime_type};base64,{base64_image}"
                     },
-                ],
-            },
-        ]
+                },
+            ],
+        },
+    ]
 
-        # Try with response_format={"type": "json_object"} first for strict grammar constraint
-        try:
-            completion = client.chat.completions.create(
-                model=model_name,
-                messages=messages_payload,
-                temperature=0.05,
-                max_tokens=max_tokens_val,
-                response_format={"type": "json_object"},
-            )
-        except Exception as json_format_err:
-            logger.info("Retrying completion without response_format constraint: %s", json_format_err)
-            completion = client.chat.completions.create(
-                model=model_name,
-                messages=messages_payload,
-                temperature=0.05,
-                max_tokens=max_tokens_val,
-            )
+    # Try with response_format={"type": "json_object"} first for strict grammar constraint
+    try:
+        completion = client.chat.completions.create(
+            model=model_name,
+            messages=messages_payload,
+            temperature=0.05,
+            max_tokens=max_tokens_val,
+            response_format={"type": "json_object"},
+        )
+    except Exception as json_format_err:
+        logger.info("Retrying completion without response_format constraint: %s", json_format_err)
+        completion = client.chat.completions.create(
+            model=model_name,
+            messages=messages_payload,
+            temperature=0.05,
+            max_tokens=max_tokens_val,
+        )
 
-        content = completion.choices[0].message.content or ""
-        menu_data = clean_and_parse_json(content)
+    content = completion.choices[0].message.content or ""
+    menu_data = clean_and_parse_json(content)
 
-        # Ensure minimal required fields exist
-        if not isinstance(menu_data, dict):
-            menu_data = {"restaurant_name": "Smart Menu", "categories": []}
-        if "categories" not in menu_data or not isinstance(menu_data["categories"], list):
-            menu_data["categories"] = []
-
-    except Exception as e:
-        logger.error("AI menu parsing failed: %s", e)
-        raise HTTPException(status_code=500, detail=f"AI parsing failed: {e}")
+    # Ensure minimal required fields exist
+    if not isinstance(menu_data, dict):
+        menu_data = {"restaurant_name": "Smart Menu", "categories": []}
+    if "categories" not in menu_data or not isinstance(menu_data["categories"], list):
+        menu_data["categories"] = []
 
     try:
         await enrich_menu_with_images(menu_data)
     except Exception as img_err:
         logger.warning("Could not enrich menu with images: %s", img_err)
 
+    return menu_data
+
+
+def _create_menu_and_tables(
+    user: dict,
+    menu_data: dict,
+    num_tables: int,
+    admin_lat: float | None = None,
+    admin_lon: float | None = None,
+    restaurant_name: str | None = None,
+) -> dict:
     menu_id = str(uuid.uuid4())[:8]
     table_qrs = []
 
-    # Use restaurant_name from user profile if set, or parsed from menu
-    rest_name = user.get("restaurant_name") or menu_data.get("restaurant_name") or "Smart Menu Restaurant"
+    # Use restaurant_name from parameter, user profile if set, or parsed from menu
+    rest_name = restaurant_name or user.get("restaurant_name") or menu_data.get("restaurant_name") or "Smart Menu Restaurant"
     menu_data["restaurant_name"] = rest_name
     user_plan = (user.get("plan") or _get_setting_val("plan") or "basic").lower()
 
@@ -1541,7 +1544,7 @@ async def process_menu(
         try:
             update_user_profile(user["uid"], user_updates)
         except Exception as e:
-            logger.warning("Could not sync user profile in process_menu: %s", e)
+            logger.warning("Could not sync user profile: %s", e)
 
     return {
         "menu_id": menu_id,
@@ -1555,6 +1558,147 @@ async def process_menu(
         },
         "menu_data": menu_data,
     }
+
+
+@app.post("/api/parse-menu")
+async def parse_menu_endpoint(
+    request: Request,
+    file: UploadFile = File(...),
+):
+    """
+    Stage 1: AI Vision Menu Parsing & Instant Culinary Enrichment.
+    Returns parsed categories, dishes, prices, and high-fidelity image URLs
+    so the restaurateur can preview and replace any dish photo before generating QR codes.
+    """
+    user = get_current_user_from_request(request)
+
+    image_bytes = await file.read()
+    mime_type = file.content_type or "image/jpeg"
+
+    try:
+        menu_data = await _extract_menu_from_image(image_bytes, mime_type)
+    except Exception as e:
+        logger.error("AI menu parsing failed: %s", e)
+        raise HTTPException(status_code=500, detail=f"AI parsing failed: {e}")
+
+    rest_name = user.get("restaurant_name") or menu_data.get("restaurant_name") or "Smart Menu Restaurant"
+    menu_data["restaurant_name"] = rest_name
+
+    return {
+        "ok": True,
+        "restaurant_name": rest_name,
+        "menu_data": menu_data,
+    }
+
+
+@app.post("/api/finalize-menu")
+async def finalize_menu_endpoint(
+    request: Request,
+    payload: FinalizeMenuRequest,
+):
+    """
+    Stage 2: Confirm & Generate QR codes.
+    Persists the finalized, owner-customized menu data and produces secure Table & Counter QR codes.
+    """
+    user = get_current_user_from_request(request)
+    num_tables = max(1, min(100, int(payload.num_tables or 5)))
+
+    return _create_menu_and_tables(
+        user=user,
+        menu_data=payload.menu_data,
+        num_tables=num_tables,
+        admin_lat=payload.admin_lat,
+        admin_lon=payload.admin_lon,
+        restaurant_name=payload.restaurant_name,
+    )
+
+
+@app.post("/api/dishes/custom-image")
+async def upload_custom_dish_image(
+    request: Request,
+    file: UploadFile = File(...),
+    dish_name: str = Form(...),
+    category: str = Form(""),
+):
+    """
+    Allows restaurant owner to upload their own photo for any dish during review or management.
+    Compresses and saves to local disk cache and persistent PostgreSQL dish_image_cache.
+    """
+    user = get_current_user_from_request(request)
+
+    file_bytes = await file.read()
+    if not file_bytes:
+        raise HTTPException(status_code=400, detail="Empty image file received.")
+
+    try:
+        from PIL import Image
+        import io
+        img = Image.open(io.BytesIO(file_bytes))
+        if img.mode in ("RGBA", "P"):
+            img = img.convert("RGB")
+        max_dim = 800
+        if img.width > max_dim or img.height > max_dim:
+            img.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=88, optimize=True)
+        compressed_bytes = buf.getvalue()
+    except Exception as e:
+        logger.error("Custom dish image processing error: %s", e)
+        raise HTTPException(status_code=400, detail="Invalid image file format.")
+
+    slug = make_dish_slug(dish_name, category)
+    timestamp = int(time.time())
+
+    # 1. Save to local disk cache
+    try:
+        (DISHES_DIR / f"{slug}.jpg").write_bytes(compressed_bytes)
+    except Exception as disk_err:
+        logger.warning("Disk write error for custom dish image: %s", disk_err)
+
+    # 2. Save persistently to PostgreSQL dish_image_cache
+    set_cached_dish_image(slug, image_bytes=compressed_bytes, mime_type="image/jpeg")
+
+    served_url = f"/api/dishes/image?name={urllib.parse.quote(dish_name)}&category={urllib.parse.quote(category)}&v={timestamp}"
+
+    return {
+        "ok": True,
+        "image_url": served_url,
+        "dish_name": dish_name,
+        "category": category,
+        "slug": slug,
+    }
+
+
+@app.post("/api/process-menu")
+async def process_menu(
+    request: Request,
+    file: UploadFile = File(...),
+    num_tables: int = Form(...),
+    admin_lat: float | None = Form(None),
+    admin_lon: float | None = Form(None),
+):
+    """
+    Direct legacy pipeline: Parse, Enrich, and Generate QR codes in a single request.
+    Maintained for full backward compatibility.
+    """
+    user = get_current_user_from_request(request)
+
+    image_bytes = await file.read()
+    mime_type = file.content_type or "image/jpeg"
+
+    try:
+        menu_data = await _extract_menu_from_image(image_bytes, mime_type)
+    except Exception as e:
+        logger.error("AI menu parsing failed: %s", e)
+        raise HTTPException(status_code=500, detail=f"AI parsing failed: {e}")
+
+    return _create_menu_and_tables(
+        user=user,
+        menu_data=menu_data,
+        num_tables=num_tables,
+        admin_lat=admin_lat,
+        admin_lon=admin_lon,
+    )
 
 
 @app.get("/api/menus/{menu_id}")

@@ -203,6 +203,118 @@ export const api = {
     }),
 
   // ── Menu Upload & AI Processing ─────────────────────────────────────
+  parseMenu: async (formData) => {
+    let token = await getAuthToken();
+    const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+
+    const endpoints = [
+      `${BASE}/parse-menu`,
+      ...(BASE !== "/api" ? ["/api/parse-menu"] : []),
+    ];
+
+    let lastError = null;
+    for (const targetUrl of endpoints) {
+      try {
+        const res = await fetch(targetUrl, {
+          method: "POST",
+          body: formData,
+          credentials: "include",
+          headers: {
+            ...authHeaders,
+          },
+        });
+
+        if (res.status === 401 && typeof window !== "undefined") {
+          try {
+            const { auth } = await import("./lib/firebase");
+            if (auth?.currentUser) {
+              const freshIdToken = await auth.currentUser.getIdToken(true);
+              const sessionRes = await fetch(`${BASE}/auth/session`, {
+                method: "POST",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  idToken: freshIdToken,
+                  mode: "signin",
+                  deviceType: "web",
+                  deviceName: navigator.userAgent,
+                }),
+              });
+              if (sessionRes.ok) {
+                const sessionData = await sessionRes.json();
+                if (sessionData.token) {
+                  localStorage.setItem("acid_token", sessionData.token);
+                  const retryRes = await fetch(targetUrl, {
+                    method: "POST",
+                    body: formData,
+                    credentials: "include",
+                    headers: {
+                      Authorization: `Bearer ${sessionData.token}`,
+                    },
+                  });
+                  return retryRes;
+                }
+              }
+            }
+          } catch (refreshErr) {
+            console.warn("Token refresh attempt failed:", refreshErr);
+          }
+        }
+
+        return res;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+
+    throw lastError || new Error("Could not reach the server.");
+  },
+
+  uploadCustomDishImage: async (formData) => {
+    let token = await getAuthToken();
+    const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+
+    const endpoints = [
+      `${BASE}/dishes/custom-image`,
+      ...(BASE !== "/api" ? ["/api/dishes/custom-image"] : []),
+    ];
+
+    let lastError = null;
+    for (const targetUrl of endpoints) {
+      try {
+        const res = await fetch(targetUrl, {
+          method: "POST",
+          body: formData,
+          credentials: "include",
+          headers: {
+            ...authHeaders,
+          },
+        });
+
+        if (!res.ok) {
+          let msg = "Failed to upload custom dish image";
+          try {
+            const data = await res.json();
+            if (data?.detail) msg = data.detail;
+          } catch (_) {}
+          throw new Error(msg);
+        }
+
+        return await res.json();
+      } catch (err) {
+        lastError = err;
+      }
+    }
+
+    throw lastError || new Error("Could not reach the server.");
+  },
+
+  finalizeMenu: (payload) =>
+    request("/finalize-menu", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
   processMenu: async (formData) => {
     let token = await getAuthToken();
     const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};

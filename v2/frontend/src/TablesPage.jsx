@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { api } from '../src/api';
 import TableStandStudioModal from './components/TableStandStudioModal';
+import MenuPreviewEditor from './components/MenuPreviewEditor';
 import { downloadSingleTableStandPdf, downloadBulkMultiPagePdf } from './utils/standExport';
 
 // ─── Print styles ─────────────────────────────────────────────────────────────
@@ -66,11 +67,11 @@ const PRINT_STYLES = `
 `;
 
 const UPLOAD_STEPS = [
-  { key: 'geo',    label: 'Reading location',     icon: MapPin    },
-  { key: 'scan',   label: 'Scanning menu image',  icon: ScanLine  },
-  { key: 'ai',     label: 'AI parsing dishes',    icon: Sparkles  },
-  { key: 'images', label: 'Sourcing dish photos', icon: ImagePlus },
-  { key: 'done',   label: 'Generating table QRs', icon: QrCode    },
+  { key: 'geo',    label: 'Reading location',          icon: MapPin    },
+  { key: 'scan',   label: 'Scanning menu image',       icon: ScanLine  },
+  { key: 'ai',     label: 'AI parsing dishes',         icon: Sparkles  },
+  { key: 'images', label: 'Matching culinary imagery', icon: ImagePlus },
+  { key: 'done',   label: 'Opening preview studio',    icon: Sparkles  },
 ];
 
 // ─── Print pages (rendered off-screen, only visible during print) ─────────────
@@ -1235,6 +1236,8 @@ function TablesPage({ t, mode, settings = {} }) {
   const [resetting, setResetting]         = useState(false);
   const [resetConfirm, setResetConfirm]   = useState(false);
   const [isUploadingNew, setIsUploadingNew] = useState(false);
+  const [previewData, setPreviewData]     = useState(null);
+  const [isFinalizing, setIsFinalizing]   = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'NDEFReader' in window) setNfcSupported(true);
@@ -1269,6 +1272,7 @@ function TablesPage({ t, mode, settings = {} }) {
   const doUpload = useCallback(async (file) => {
     setLoading(true);
     setError(null);
+    setPreviewData(null);
     setStepIndex(0);
 
     const upload = async (lat, lon) => {
@@ -1284,7 +1288,7 @@ function TablesPage({ t, mode, settings = {} }) {
 
       let res;
       try {
-        res = await api.processMenu(formData);
+        res = await api.parseMenu(formData);
       } catch (err) {
         clearTimeout(t1); clearTimeout(t2);
         setLoading(false);
@@ -1304,9 +1308,15 @@ function TablesPage({ t, mode, settings = {} }) {
       setStepIndex(4);
       const data = await res.json();
       await new Promise((r) => setTimeout(r, 350));
-      setQrData(data);
-      setIsUploadingNew(false);
       setLoading(false);
+
+      // Transition to Stage 2: Preview & Customize Studio
+      setPreviewData({
+        restaurant_name: data.restaurant_name || settings?.restaurant_name || 'My Restaurant',
+        menu_data: data.menu_data || { categories: [] },
+        admin_lat: lat,
+        admin_lon: lon,
+      });
     };
 
     navigator.geolocation.getCurrentPosition(
@@ -1314,7 +1324,36 @@ function TablesPage({ t, mode, settings = {} }) {
       ()    => upload(null, null),
       { timeout: 8000 }
     );
-  }, [numTables, setQrData]);
+  }, [numTables, settings]);
+
+  const handleFinalizeMenu = async (customizedData) => {
+    setIsFinalizing(true);
+    setError(null);
+    try {
+      const payload = {
+        menu_data: customizedData.menu_data,
+        num_tables: Number(customizedData.num_tables || numTables) || 1,
+        admin_lat: previewData?.admin_lat,
+        admin_lon: previewData?.admin_lon,
+        restaurant_name: customizedData.restaurant_name || previewData?.restaurant_name,
+      };
+      const result = await api.finalizeMenu(payload);
+      setQrData(result);
+      setPreviewData(null);
+      setIsUploadingNew(false);
+    } catch (err) {
+      setError({ kind: 'processing', message: err.message || 'Failed to finalize menu and generate QR codes.' });
+    } finally {
+      setIsFinalizing(false);
+    }
+  };
+
+  const handleCancelPreview = () => {
+    setPreviewData(null);
+    if (!qrData) {
+      setIsUploadingNew(true);
+    }
+  };
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -1327,6 +1366,7 @@ function TablesPage({ t, mode, settings = {} }) {
 
   const resetToUpload = () => {
     setIsUploadingNew(true);
+    setPreviewData(null);
     setError(null);
     setPendingFile(null);
     setNfcStatus({ kind: 'idle', message: '' });
@@ -1336,6 +1376,7 @@ function TablesPage({ t, mode, settings = {} }) {
 
   const handleBackToQr = () => {
     setIsUploadingNew(false);
+    setPreviewData(null);
     setError(null);
     setPendingFile(null);
   };
@@ -1487,7 +1528,20 @@ function TablesPage({ t, mode, settings = {} }) {
             </p>
           </div>
 
-          {qrData && !isUploadingNew && (
+          {previewData && (
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <button
+                type="button"
+                onClick={handleCancelPreview}
+                className="h-10 inline-flex items-center justify-center gap-2 whitespace-nowrap leading-none font-mono text-xs font-bold px-4 rounded-full border border-white/15 bg-[#0a0d14]/70 backdrop-blur-xl text-zinc-300 hover:text-white hover:border-amber-400/50 hover:bg-amber-500/10 transition-all shadow-lg cursor-pointer active:scale-95"
+              >
+                <ArrowLeft size={14} className="text-amber-400 shrink-0" />
+                <span>Discard &amp; Re-upload</span>
+              </button>
+            </div>
+          )}
+
+          {!previewData && qrData && !isUploadingNew && (
             <div className="flex items-center gap-2.5 flex-wrap">
               <button
                 type="button"
@@ -1537,12 +1591,14 @@ function TablesPage({ t, mode, settings = {} }) {
         </div>
 
         {/* Stats row */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <StatCard icon={Table2}     label="Active tables"    value={qrData ? qrData.tables.length : numTables} sub="This location" t={t} />
-          <StatCard icon={TrendingUp} label="Menus processed"  value={qrData ? '1+' : '0'} sub="This session" t={t} />
-          <StatCard icon={Receipt}    label="Orders today"     value="—" sub="See Orders page" t={t} />
-          <StatCard icon={Sparkles}   label="AI parses"        value={qrData ? '1+' : '0'} sub="This session" t={t} />
-        </div>
+        {!previewData && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <StatCard icon={Table2}     label="Active tables"    value={qrData ? qrData.tables.length : numTables} sub="This location" t={t} />
+            <StatCard icon={TrendingUp} label="Menus processed"  value={qrData ? '1+' : '0'} sub="This session" t={t} />
+            <StatCard icon={Receipt}    label="Orders today"     value="—" sub="See Orders page" t={t} />
+            <StatCard icon={Sparkles}   label="AI parses"        value={qrData ? '1+' : '0'} sub="This session" t={t} />
+          </div>
+        )}
 
         {/* Reset confirm warning */}
         <AnimatePresence>
@@ -1569,7 +1625,7 @@ function TablesPage({ t, mode, settings = {} }) {
           <AnimatePresence mode="wait">
 
             {/* Upload form */}
-            {(!qrData || isUploadingNew) && !loading && !error && (
+            {(!qrData || isUploadingNew) && !loading && !error && !previewData && (
               <motion.div key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
                   {/* Left Column: Form Controls (7 cols) */}
@@ -1791,8 +1847,22 @@ function TablesPage({ t, mode, settings = {} }) {
               </motion.div>
             )}
 
+            {/* Stage 2: Preview & Customize Dishes Before Generating Final QR */}
+            {previewData && !loading && !error && (
+              <motion.div key="preview" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                <MenuPreviewEditor
+                  initialData={previewData}
+                  numTables={numTables}
+                  setNumTables={setNumTables}
+                  onConfirm={handleFinalizeMenu}
+                  onCancel={handleCancelPreview}
+                  isFinalizing={isFinalizing}
+                />
+              </motion.div>
+            )}
+
             {/* QR grid */}
-            {qrData && !isUploadingNew && !loading && (
+            {qrData && !isUploadingNew && !loading && !previewData && (
               <QRGrid
                 qrData={qrData}
                 t={t}
