@@ -1354,6 +1354,67 @@ def clean_and_parse_json(content: str) -> dict:
     raise ValueError(f"Could not parse valid JSON from AI response: {candidate[:150]}...")
 
 
+async def _parse_menu_with_cloudflare(image_bytes: bytes) -> dict:
+    """
+    High-capacity Cloudflare Workers AI Vision fallback (@cf/meta/llama-3.2-11b-vision-instruct).
+    Activated automatically when Groq reaches its output token-per-minute (OTPM) rate limit (429).
+    """
+    if not CLOUDFLARE_ACCOUNT_ID or not CLOUDFLARE_API_TOKEN:
+        raise ValueError("Cloudflare credentials not configured.")
+
+    from PIL import Image
+    import io
+    img = Image.open(io.BytesIO(image_bytes))
+    if img.mode in ("RGBA", "P"):
+        img = img.convert("RGB")
+    max_dim = 1600
+    if img.width > max_dim or img.height > max_dim:
+        img.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=85)
+    cf_img_bytes = buf.getvalue()
+
+    url = f"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/meta/llama-3.2-11b-vision-instruct"
+    headers = {
+        "Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}",
+        "Content-Type": "application/json",
+    }
+    prompt = """
+    Extract all food, beverage, and dessert items from this menu image into strictly valid JSON matching this schema:
+    {
+      "restaurant_name": "Restaurant Name",
+      "categories": [
+        {
+          "category_name": "Category Name",
+          "theme": "acid-lime",
+          "items": [
+            {
+              "name": "Exact Dish Name",
+              "price": 10.50,
+              "description": "",
+              "tags": ["popular"]
+            }
+          ]
+        }
+      ]
+    }
+    Return ONLY valid JSON.
+    """
+    payload = {
+        "prompt": prompt,
+        "image": list(cf_img_bytes),
+        "max_tokens": 2048,
+    }
+
+    async with httpx.AsyncClient(timeout=45.0) as cf_client:
+        r = await cf_client.post(url, headers=headers, json=payload)
+        if r.status_code == 200:
+            res_json = r.json()
+            content = res_json.get("result", {}).get("response", "")
+            return clean_and_parse_json(content)
+        raise ValueError(f"Cloudflare Vision returned status {r.status_code}: {r.text[:200]}")
+
+
 async def _extract_menu_from_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> dict:
     # Optimize and resize high-res smartphone photos while preserving small menu typography
     try:
@@ -1423,53 +1484,73 @@ async def _extract_menu_from_image(image_bytes: bytes, mime_type: str = "image/j
     OUTPUT STRICTLY VALID JSON.
     """
 
-    if not client:
-        raise HTTPException(status_code=500, detail="GROQ_API_KEY is not configured on the server")
-    model_name = os.environ.get("GROQ_MODEL", "qwen/qwen3.8-27b")
-    max_tokens_val = int(os.environ.get("GROQ_MAX_TOKENS", "8192"))
+    menu_data = None
 
-    messages_payload = [
-        {"role": "system", "content": system_prompt},
-        {
-            "role": "user",
-            "content": [
-                {"type": "text", "text": prompt},
+    # 1. Primary Engine: Groq Vision with safety-capped output tokens to prevent OTPM 429
+    if client:
+        try:
+            model_name = os.environ.get("GROQ_MODEL", "qwen/qwen3.8-27b")
+            # Enforce max 950 output tokens to strictly comply with Groq on-demand OTPM 1000 limit
+            max_tokens_val = min(950, int(os.environ.get("GROQ_MAX_TOKENS", "950")))
+
+            messages_payload = [
+                {"role": "system", "content": system_prompt},
                 {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": f"data:{mime_type};base64,{base64_image}"
-                    },
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:{mime_type};base64,{base64_image}"
+                            },
+                        },
+                    ],
                 },
-            ],
-        },
-    ]
+            ]
 
-    # Try with response_format={"type": "json_object"} first for strict grammar constraint
-    try:
-        completion = client.chat.completions.create(
-            model=model_name,
-            messages=messages_payload,
-            temperature=0.05,
-            max_tokens=max_tokens_val,
-            response_format={"type": "json_object"},
-        )
-    except Exception as json_format_err:
-        logger.info("Retrying completion without response_format constraint: %s", json_format_err)
-        completion = client.chat.completions.create(
-            model=model_name,
-            messages=messages_payload,
-            temperature=0.05,
-            max_tokens=max_tokens_val,
-        )
+            try:
+                completion = client.chat.completions.create(
+                    model=model_name,
+                    messages=messages_payload,
+                    temperature=0.05,
+                    max_tokens=max_tokens_val,
+                    response_format={"type": "json_object"},
+                )
+            except Exception as json_format_err:
+                logger.info("Retrying Groq completion without response_format constraint: %s", json_format_err)
+                completion = client.chat.completions.create(
+                    model=model_name,
+                    messages=messages_payload,
+                    temperature=0.05,
+                    max_tokens=max_tokens_val,
+                )
 
-    content = completion.choices[0].message.content or ""
-    menu_data = clean_and_parse_json(content)
+            content = completion.choices[0].message.content or ""
+            menu_data = clean_and_parse_json(content)
+        except Exception as groq_err:
+            logger.warning("Groq menu parsing notice (triggering Cloudflare Vision fallback): %s", groq_err)
+            menu_data = None
+
+    # 2. Seamless Fallback: Cloudflare Workers AI Vision if Groq is rate-limited (429) or unavailable
+    if not menu_data or not menu_data.get("categories"):
+        try:
+            logger.info("Running Cloudflare Llama-3.2 Vision fallback...")
+            menu_data = await _parse_menu_with_cloudflare(image_bytes)
+        except Exception as cf_err:
+            logger.error("Cloudflare Vision fallback error: %s", cf_err)
 
     # Ensure minimal required fields exist
     if not isinstance(menu_data, dict):
         menu_data = {"restaurant_name": "Smart Menu", "categories": []}
     if "categories" not in menu_data or not isinstance(menu_data["categories"], list):
         menu_data["categories"] = []
+
+    if not menu_data["categories"]:
+        raise HTTPException(
+            status_code=500,
+            detail="AI parsing was unable to extract dishes from this image. Please ensure the menu photo is clearly lit and legible."
+        )
 
     try:
         await enrich_menu_with_images(menu_data)
