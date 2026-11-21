@@ -816,6 +816,7 @@ class FinalizeMenuRequest(BaseModel):
     admin_lat: float | None = None
     admin_lon: float | None = None
     restaurant_name: str | None = None
+    menu_id: str | None = None
 
 class OrderItem(BaseModel):
     name: str
@@ -1599,9 +1600,45 @@ async def finalize_menu_endpoint(
     """
     Stage 2: Confirm & Generate QR codes.
     Persists the finalized, owner-customized menu data and produces secure Table & Counter QR codes.
+    If menu_id is passed, updates existing menu data in-place without invalidating tables.
     """
     user = get_current_user_from_request(request)
     num_tables = max(1, min(100, int(payload.num_tables or 5)))
+
+    # If menu_id is provided, check if it belongs to user to update in-place
+    if payload.menu_id:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "SELECT menu_id FROM menus WHERE menu_id = %s AND user_id = %s LIMIT 1",
+                (payload.menu_id, user["uid"])
+            )
+            existing = cur.fetchone()
+            if existing:
+                rest_name = payload.restaurant_name or payload.menu_data.get("restaurant_name") or "Smart Menu Restaurant"
+                payload.menu_data["restaurant_name"] = rest_name
+                cur.execute(
+                    "UPDATE menus SET data_json = %s, restaurant_name = %s WHERE menu_id = %s",
+                    (json.dumps(payload.menu_data), rest_name, payload.menu_id)
+                )
+                cur.execute(
+                    "SELECT id, table_id, token, short_code, table_name FROM tables WHERE menu_id = %s",
+                    (payload.menu_id,)
+                )
+                tables = []
+                counter_table = None
+                for row in cur.fetchall():
+                    td = row_to_dict(row)
+                    if str(td.get("table_id")) == "COUNTER":
+                        counter_table = td
+                    else:
+                        tables.append(td)
+                return {
+                    "menu_id": payload.menu_id,
+                    "restaurant_name": rest_name,
+                    "tables": tables,
+                    "counter_table": counter_table,
+                    "menu_data": payload.menu_data,
+                }
 
     return _create_menu_and_tables(
         user=user,

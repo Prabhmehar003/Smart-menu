@@ -202,6 +202,8 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
+  getMenu: (menuId) => request(`/menus/${encodeURIComponent(menuId)}`),
+
   // ── Menu Upload & AI Processing ─────────────────────────────────────
   parseMenu: async (formData) => {
     let token = await getAuthToken();

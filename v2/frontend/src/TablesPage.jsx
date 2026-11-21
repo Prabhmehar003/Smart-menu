@@ -1336,6 +1336,7 @@ function TablesPage({ t, mode, settings = {} }) {
         admin_lat: previewData?.admin_lat,
         admin_lon: previewData?.admin_lon,
         restaurant_name: customizedData.restaurant_name || previewData?.restaurant_name,
+        menu_id: previewData?.menu_id || null,
       };
       const result = await api.finalizeMenu(payload);
       setQrData(result);
@@ -1347,6 +1348,25 @@ function TablesPage({ t, mode, settings = {} }) {
       setIsFinalizing(false);
     }
   };
+
+  const handleOpenPreviewCurrent = useCallback(async () => {
+    if (!qrData?.menu_id) return;
+    setLoading(true);
+    try {
+      const res = await api.getMenu(qrData.menu_id);
+      setPreviewData({
+        restaurant_name: res.restaurant_name || qrData.restaurant_name,
+        menu_data: res.data || { categories: [] },
+        admin_lat: qrData.lat,
+        admin_lon: qrData.lon,
+        menu_id: qrData.menu_id,
+      });
+    } catch (err) {
+      setError({ kind: 'processing', message: err.message || 'Could not load current menu.' });
+    } finally {
+      setLoading(false);
+    }
+  }, [qrData]);
 
   const handleCancelPreview = () => {
     setPreviewData(null);
@@ -1543,6 +1563,15 @@ function TablesPage({ t, mode, settings = {} }) {
 
           {!previewData && qrData && !isUploadingNew && (
             <div className="flex items-center gap-2.5 flex-wrap">
+              <button
+                type="button"
+                onClick={handleOpenPreviewCurrent}
+                className="h-10 inline-flex items-center justify-center gap-2 whitespace-nowrap leading-none font-mono text-xs font-bold px-4 rounded-full border border-amber-400/50 bg-amber-400/10 hover:bg-amber-400/20 text-amber-300 transition-all shadow-lg cursor-pointer active:scale-95"
+                title="Review all dishes, change food photos, and adjust prices for this menu"
+              >
+                <Sparkles size={14} className="text-amber-400 shrink-0" />
+                <span>Preview &amp; Edit Dishes</span>
+              </button>
               <button
                 type="button"
                 onClick={() => handleOpenStandStudio(null, null)}
