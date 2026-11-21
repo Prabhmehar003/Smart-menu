@@ -246,8 +246,19 @@ async def stream_order_events(request: Request):
         },
     )
 
-# Dish-image cache
-IMAGE_CACHE: dict = {}
+# In-memory ultra-fast dish image cache & inflight deduplication map
+IMAGE_CACHE: dict[str, bytes] = {}
+INFLIGHT_IMAGE_TASKS: dict[str, asyncio.Task] = {}
+_CF_CLIENT: httpx.AsyncClient | None = None
+
+def get_cf_client() -> httpx.AsyncClient:
+    global _CF_CLIENT
+    if _CF_CLIENT is None or _CF_CLIENT.is_closed:
+        _CF_CLIENT = httpx.AsyncClient(
+            timeout=25.0,
+            limits=httpx.Limits(max_keepalive_connections=30, max_connections=60, keepalive_expiry=60.0),
+        )
+    return _CF_CLIENT
 
 # ---------------------------------------------------------------------------
 # Utility helpers
@@ -623,32 +634,32 @@ async def fetch_cloudflare_image_bytes(dish_name: str, category: str = "", descr
     }
 
     try:
-        async with httpx.AsyncClient(timeout=25.0) as client:
-            r = await client.post(url, headers=headers, json={"prompt": prompt})
-            if r.status_code == 200 and r.content:
-                from PIL import Image
-                import io
-                img = Image.open(io.BytesIO(r.content))
-                extrema = img.getextrema()
-                if all(e[0] == 0 and e[1] == 0 for e in extrema):
-                    clean_name, clean_cat, _ = clean_culinary_terms(dish_name, category)
-                    r_retry = await client.post(
-                        url,
-                        headers=headers,
-                        json={"prompt": f"delicious {clean_name} {clean_cat} dish, appetizing restaurant food photography"}
-                    )
-                    if r_retry.status_code == 200 and r_retry.content:
-                        img = Image.open(io.BytesIO(r_retry.content))
-                if img.mode in ("RGBA", "P"):
-                    img = img.convert("RGB")
-                img = img.resize((512, 512), Image.Resampling.LANCZOS)
-                buf = io.BytesIO()
-                img.save(buf, format="JPEG", quality=85, optimize=True)
-                val = buf.getvalue()
-                if len(val) > 4000:
-                    return val
-            else:
-                logger.warning("Cloudflare AI generation status %s for '%s' in '%s'", r.status_code, dish_name, category)
+        cf_http = get_cf_client()
+        r = await cf_http.post(url, headers=headers, json={"prompt": prompt})
+        if r.status_code == 200 and r.content:
+            from PIL import Image
+            import io
+            img = Image.open(io.BytesIO(r.content))
+            extrema = img.getextrema()
+            if all(e[0] == 0 and e[1] == 0 for e in extrema):
+                clean_name, clean_cat, _ = clean_culinary_terms(dish_name, category)
+                r_retry = await cf_http.post(
+                    url,
+                    headers=headers,
+                    json={"prompt": f"delicious {clean_name} {clean_cat} dish, appetizing restaurant food photography"}
+                )
+                if r_retry.status_code == 200 and r_retry.content:
+                    img = Image.open(io.BytesIO(r_retry.content))
+            if img.mode in ("RGBA", "P"):
+                img = img.convert("RGB")
+            img = img.resize((512, 512), Image.Resampling.LANCZOS)
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=85, optimize=True)
+            val = buf.getvalue()
+            if len(val) > 4000:
+                return val
+        else:
+            logger.warning("Cloudflare AI generation status %s for '%s' in '%s'", r.status_code, dish_name, category)
     except Exception as e:
         logger.warning("Cloudflare AI generation error for '%s' in '%s': %s", dish_name, category, e)
 
@@ -663,22 +674,27 @@ async def resolve_dish_image(dish_name: str, category: str = "", description: st
 async def prewarm_menu_images(flat_items: list) -> None:
     """
     Background worker that pre-generates studio-grade images for newly uploaded menus
-    via Cloudflare Workers AI. Runs gently without blocking the upload response.
+    via Cloudflare Workers AI. Runs with high-throughput concurrency and in-memory caching.
     """
-    sem = asyncio.Semaphore(2)
+    sem = asyncio.Semaphore(4)
 
     async def _gen_item(item, cat_name):
         name = item.get("name", "").strip()
         if not name:
             return
         slug = make_dish_slug(name, cat_name)
+        if slug in IMAGE_CACHE:
+            return
         out_file = DISHES_DIR / f"{slug}.jpg"
         if out_file.exists() and out_file.stat().st_size > 3000:
+            IMAGE_CACHE[slug] = out_file.read_bytes()
             return
         cached = get_cached_dish_image(slug)
         if cached and cached.get("image_bytes") and len(cached["image_bytes"]) > 3000:
+            raw = bytes(cached["image_bytes"])
+            IMAGE_CACHE[slug] = raw
             try:
-                out_file.write_bytes(bytes(cached["image_bytes"]))
+                out_file.write_bytes(raw)
             except Exception:
                 pass
             return
@@ -687,6 +703,7 @@ async def prewarm_menu_images(flat_items: list) -> None:
             try:
                 cf_bytes = await fetch_cloudflare_image_bytes(name, cat_name, item.get("description", ""))
                 if cf_bytes:
+                    IMAGE_CACHE[slug] = cf_bytes
                     try:
                         out_file.write_bytes(cf_bytes)
                     except Exception:
@@ -694,7 +711,6 @@ async def prewarm_menu_images(flat_items: list) -> None:
                     set_cached_dish_image(slug, image_bytes=cf_bytes, mime_type="image/jpeg")
             except Exception as e:
                 logger.warning("Prewarm image error for '%s' in '%s': %s", name, cat_name, e)
-            await asyncio.sleep(0.3)
 
     # Deduplicate items by slug before running
     seen_slugs = set()
@@ -731,23 +747,34 @@ async def get_dish_image_stream(
 ):
     """
     On-demand dish image endpoint with 100% unique Category + Name precision.
-    1. Local disk cache (0ms)
+    0. In-memory RAM cache (<0.1ms)
+    1. Local disk cache (1ms)
     2. Neon PostgreSQL DB cache (10ms)
-    3. Cloudflare Workers AI bespoke generation (~1.5s)
-    Every single dish is guaranteed to have a unique, authentic culinary photograph.
+    3. Cloudflare Workers AI bespoke generation with in-flight deduplication (~1.2s)
     """
     slug = make_dish_slug(name, category)
     raw_slug = re.sub(r"[^a-zA-Z0-9]+", "_", f"{category}_{name}".lower()).strip("_")[:70]
     candidate_slugs = [slug] if slug == raw_slug else [slug, raw_slug]
 
+    # 0. In-memory RAM cache (<0.1ms)
+    for s in candidate_slugs:
+        if s in IMAGE_CACHE:
+            return Response(
+                content=IMAGE_CACHE[s],
+                media_type="image/jpeg",
+                headers={"Cache-Control": "public, max-age=31536000, immutable"},
+            )
+
     out_file = DISHES_DIR / f"{slug}.jpg"
 
-    # 1. Local disk cache (0ms)
+    # 1. Local disk cache (1ms)
     for s in candidate_slugs:
         f = DISHES_DIR / f"{s}.jpg"
         if f.exists() and f.stat().st_size > 3000:
+            raw = f.read_bytes()
+            IMAGE_CACHE[s] = raw
             return Response(
-                content=f.read_bytes(),
+                content=raw,
                 media_type="image/jpeg",
                 headers={"Cache-Control": "public, max-age=31536000, immutable"},
             )
@@ -763,6 +790,7 @@ async def get_dish_image_stream(
 
     if cached and cached.get("image_bytes") and len(cached["image_bytes"]) > 3000:
         raw = bytes(cached["image_bytes"])
+        IMAGE_CACHE[matched_slug] = raw
         try:
             (DISHES_DIR / f"{matched_slug}.jpg").write_bytes(raw)
         except Exception:
@@ -773,9 +801,18 @@ async def get_dish_image_stream(
             headers={"Cache-Control": "public, max-age=31536000, immutable"},
         )
 
-    # 3. Cloudflare Workers AI generation with Category + Name framing (~1.5s)
-    cf_bytes = await fetch_cloudflare_image_bytes(name, category, description)
+    # 3. Cloudflare Workers AI generation with in-flight request deduplication
+    task = INFLIGHT_IMAGE_TASKS.get(slug)
+    if task is None or task.done():
+        task = asyncio.create_task(fetch_cloudflare_image_bytes(name, category, description))
+        INFLIGHT_IMAGE_TASKS[slug] = task
+    try:
+        cf_bytes = await task
+    finally:
+        INFLIGHT_IMAGE_TASKS.pop(slug, None)
+
     if cf_bytes:
+        IMAGE_CACHE[slug] = cf_bytes
         try:
             out_file.write_bytes(cf_bytes)
         except Exception:
@@ -1775,6 +1812,9 @@ async def upload_custom_dish_image(
 
     # 2. Save persistently to PostgreSQL dish_image_cache
     set_cached_dish_image(slug, image_bytes=compressed_bytes, mime_type="image/jpeg")
+
+    # 3. Update in-memory ultra-fast RAM cache
+    IMAGE_CACHE[slug] = compressed_bytes
 
     served_url = f"/api/dishes/image?name={urllib.parse.quote(dish_name)}&category={urllib.parse.quote(category)}&v={timestamp}"
 

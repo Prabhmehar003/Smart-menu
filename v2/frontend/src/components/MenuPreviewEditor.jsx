@@ -128,6 +128,47 @@ export default function MenuPreviewEditor({
     });
   };
 
+  // Remove photo from dish (leaves dish in menu with no image)
+  const handleRemovePhoto = (catIdx, itemIdx) => {
+    setMenuData((prev) => {
+      const next = JSON.parse(JSON.stringify(prev));
+      if (next.categories[catIdx]?.items[itemIdx]) {
+        next.categories[catIdx].items[itemIdx].image_url = '';
+      }
+      return next;
+    });
+    const item = categories[catIdx]?.items[itemIdx];
+    if (item) {
+      const dishKey = `${catIdx}_${itemIdx}_${item.name}`;
+      setCustomPhotos((prev) => {
+        const next = new Set(prev);
+        next.delete(dishKey);
+        return next;
+      });
+    }
+  };
+
+  // Reset custom photo back to AI studio image
+  const handleResetToDefaultPhoto = (catIdx, itemIdx) => {
+    const cat = categories[catIdx];
+    const item = cat?.items?.[itemIdx];
+    if (!item) return;
+    const defaultUrl = `/api/dishes/image?name=${encodeURIComponent(item.name || '')}&category=${encodeURIComponent(cat.category_name || '')}&v=${Date.now()}`;
+    setMenuData((prev) => {
+      const next = JSON.parse(JSON.stringify(prev));
+      if (next.categories[catIdx]?.items[itemIdx]) {
+        next.categories[catIdx].items[itemIdx].image_url = defaultUrl;
+      }
+      return next;
+    });
+    const dishKey = `${catIdx}_${itemIdx}_${item.name}`;
+    setCustomPhotos((prev) => {
+      const next = new Set(prev);
+      next.delete(dishKey);
+      return next;
+    });
+  };
+
   // Add new dish
   const handleAddItem = (catIdx) => {
     const cat = categories[catIdx];
@@ -388,6 +429,8 @@ export default function MenuPreviewEditor({
                       isUploading={isUploadingThis}
                       hasCustomPhoto={hasCustomPhoto}
                       onUploadPhoto={(file) => handleUploadDishPhoto(catIdx, itemIdx, file)}
+                      onRemovePhoto={() => handleRemovePhoto(catIdx, itemIdx)}
+                      onResetPhoto={() => handleResetToDefaultPhoto(catIdx, itemIdx)}
                       onUpdateName={(val) => handleUpdateItem(catIdx, itemIdx, 'name', val)}
                       onUpdatePrice={(val) => handleUpdateItem(catIdx, itemIdx, 'price', val)}
                       onDelete={() => handleDeleteItem(catIdx, itemIdx)}
@@ -469,77 +512,145 @@ function DishCard({
   isUploading,
   hasCustomPhoto,
   onUploadPhoto,
+  onRemovePhoto,
+  onResetPhoto,
   onUpdateName,
   onUpdatePrice,
   onDelete,
 }) {
   const fileInputRef = useRef(null);
-  const [isEditing, setIsEditing] = useState(false);
   const [imgError, setImgError] = useState(false);
 
-  // Safe image URL resolver
-  const imageUrl = item.image_url || `/api/dishes/image?name=${encodeURIComponent(item.name || '')}&category=${encodeURIComponent(catName || '')}&v=3`;
+  // If item.image_url is explicitly empty string, it means the user removed the image.
+  const hasImage = item.image_url !== '' && item.image_url !== null;
+  const imageUrl = hasImage
+    ? (item.image_url || `/api/dishes/image?name=${encodeURIComponent(item.name || '')}&category=${encodeURIComponent(catName || '')}&v=3`)
+    : null;
 
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (file) {
+      setImgError(false);
       onUploadPhoto(file);
     }
   };
 
   return (
     <div className="group relative rounded-2xl border border-white/10 hover:border-amber-400/50 bg-[#0a0d14]/80 backdrop-blur-xl overflow-hidden transition-all duration-300 flex flex-col justify-between shadow-lg hover:shadow-[0_8px_25px_rgba(0,0,0,0.6)]">
-      {/* Dish Image Container */}
-      <div className="relative aspect-[4/3] w-full bg-black/40 overflow-hidden">
-        <img
-          src={imgError ? `/api/dishes/image?name=${encodeURIComponent(item.name || '')}&category=${encodeURIComponent(catName || '')}&v=3` : imageUrl}
-          alt={item.name}
-          onError={() => setImgError(true)}
-          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-        />
+      {/* Dish Image Container or Empty Photo Placeholder */}
+      <div className="relative aspect-[4/3] w-full bg-black/40 overflow-hidden flex flex-col items-center justify-center">
+        {imageUrl ? (
+          <>
+            <img
+              src={imgError ? `/api/dishes/image?name=${encodeURIComponent(item.name || '')}&category=${encodeURIComponent(catName || '')}&v=3` : imageUrl}
+              alt={item.name}
+              loading="lazy"
+              decoding="async"
+              onError={() => setImgError(true)}
+              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            />
 
-        {/* Top Badges */}
-        <div className="absolute top-2.5 inset-x-2.5 flex items-center justify-between pointer-events-none z-10">
-          {hasCustomPhoto ? (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/90 text-black font-mono text-[10px] font-black shadow-md">
-              <Check size={11} strokeWidth={3} />
-              <span>Custom Photo</span>
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-amber-300 border border-amber-400/30 font-mono text-[10px] font-semibold">
-              <Sparkles size={10} className="text-amber-400" />
-              <span>AI Photo</span>
-            </span>
-          )}
+            {/* Top Badges & Actions */}
+            <div className="absolute top-2.5 inset-x-2.5 flex items-center justify-between pointer-events-none z-10">
+              {hasCustomPhoto ? (
+                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/90 text-black font-mono text-[10px] font-black shadow-md pointer-events-auto">
+                  <Check size={11} strokeWidth={3} />
+                  <span>Custom Photo</span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onResetPhoto();
+                    }}
+                    title="Reset to default photo"
+                    className="hover:text-rose-900 transition-colors cursor-pointer ml-0.5"
+                  >
+                    <X size={11} />
+                  </button>
+                </div>
+              ) : (
+                <div />
+              )}
 
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete();
-            }}
-            title="Delete this dish"
-            className="w-7 h-7 rounded-full bg-black/60 hover:bg-rose-500/80 text-zinc-400 hover:text-white backdrop-blur-md border border-white/10 flex items-center justify-center transition-all cursor-pointer pointer-events-auto"
-          >
-            <Trash2 size={13} />
-          </button>
-        </div>
+              <div className="flex items-center gap-1 pointer-events-auto">
+                {/* Remove photo from dish button */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRemovePhoto();
+                  }}
+                  title="Remove image from dish"
+                  className="w-7 h-7 rounded-full bg-black/60 hover:bg-amber-400 text-zinc-400 hover:text-black backdrop-blur-md border border-white/10 flex items-center justify-center transition-all cursor-pointer"
+                >
+                  <X size={13} />
+                </button>
 
-        {/* Change Photo Overlay Button */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col items-center justify-end p-3 pointer-events-auto">
-          <button
-            type="button"
+                {/* Delete dish button */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete();
+                  }}
+                  title="Delete dish from menu"
+                  className="w-7 h-7 rounded-full bg-black/60 hover:bg-rose-500/80 text-zinc-400 hover:text-white backdrop-blur-md border border-white/10 flex items-center justify-center transition-all cursor-pointer"
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            </div>
+
+            {/* Change Photo Overlay Button */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col items-center justify-end p-3 pointer-events-auto gap-1.5">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
+                className="w-full py-2 px-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-black font-mono text-[11px] font-bold flex items-center justify-center gap-1.5 shadow-[0_4px_12px_rgba(0,0,0,0.5)] cursor-pointer active:scale-95 transition-all"
+              >
+                <Camera size={13} />
+                <span>{hasCustomPhoto ? 'Replace Photo' : 'Upload Your Photo'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={onRemovePhoto}
+                className="w-full py-1.5 px-3 rounded-lg bg-white/10 hover:bg-rose-500/20 text-zinc-300 hover:text-rose-300 border border-white/10 hover:border-rose-500/40 font-mono text-[10px] font-medium transition-all cursor-pointer"
+              >
+                Remove Photo
+              </button>
+            </div>
+          </>
+        ) : (
+          /* Empty Photo Placeholder */
+          <div
             onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
-            className="w-full py-2 px-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-black font-mono text-[11px] font-bold flex items-center justify-center gap-1.5 shadow-[0_4px_12px_rgba(0,0,0,0.5)] cursor-pointer active:scale-95 transition-all"
+            className="w-full h-full border-2 border-dashed border-white/10 hover:border-amber-400/50 flex flex-col items-center justify-center gap-2 p-4 text-center cursor-pointer hover:bg-white/[0.02] transition-all relative"
+            title="Click to add photo"
           >
-            <Camera size={13} />
-            <span>{hasCustomPhoto ? 'Replace Photo' : 'Upload Your Photo'}</span>
-          </button>
-          <span className="text-[10px] font-mono text-zinc-400 mt-1">
-            JPG / PNG / Camera
-          </span>
-        </div>
+            <div className="absolute top-2.5 right-2.5 pointer-events-auto">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete();
+                }}
+                title="Delete this dish"
+                className="w-7 h-7 rounded-full bg-black/60 hover:bg-rose-500/80 text-zinc-400 hover:text-white backdrop-blur-md border border-white/10 flex items-center justify-center transition-all cursor-pointer"
+              >
+                <Trash2 size={13} />
+              </button>
+            </div>
+
+            <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-zinc-400 group-hover:text-amber-400 group-hover:border-amber-400/30 transition-colors">
+              <Camera size={18} />
+            </div>
+            <span className="font-mono text-xs text-zinc-400 group-hover:text-amber-300 transition-colors">
+              No photo · Click to add
+            </span>
+          </div>
+        )}
 
         {/* Uploading Overlay */}
         {isUploading && (
@@ -593,10 +704,10 @@ function DishCard({
             type="button"
             onClick={() => fileInputRef.current?.click()}
             className="text-[11px] font-mono text-zinc-400 hover:text-amber-300 inline-flex items-center gap-1 cursor-pointer transition-colors"
-            title="Upload custom photo"
+            title={imageUrl ? "Change photo" : "Add photo"}
           >
             <Camera size={12} />
-            <span>Photo</span>
+            <span>{imageUrl ? "Change" : "Add Photo"}</span>
           </button>
         </div>
       </div>
