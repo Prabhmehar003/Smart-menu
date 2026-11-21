@@ -10,8 +10,8 @@ const defaultBaseUrl =
     ? "https://smart-menu-yf6f.onrender.com"
     : "";
 
-const API_ROOT = import.meta.env.VITE_API_BASE_URL || defaultBaseUrl;
-const BASE = API_ROOT ? `${API_ROOT}/api` : "/api";
+export const API_ROOT = import.meta.env.VITE_API_BASE_URL || defaultBaseUrl;
+export const BASE = API_ROOT ? `${API_ROOT}/api` : "/api";
 
 const inflightRequests = new Map();
 const recentGetCache = new Map();

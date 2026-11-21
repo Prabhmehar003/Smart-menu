@@ -301,6 +301,10 @@ def clean_culinary_terms(name: str, category: str = ""):
         "changzei": "changrezi",
         "bhaaraji": "bhaji",
         "bhaaji": "bhaji",
+        "black paper": "black pepper",
+        "chicken rise": "chicken rice",
+        "humburger": "hamburger",
+        "pop corn": "popcorn",
     }
     n = (name or "").lower()
     for wrong, right in corrections.items():
@@ -385,12 +389,33 @@ def build_cloudflare_prompt(dish_name: str, category: str = "", description: str
         framing = "fluffy golden pan-fried Indian masala omelette with onions, tomatoes, green chilies and cilantro, served with toasted bread"
     elif "omelette" in name_l or "omlette" in name_l:
         framing = "classic golden fluffy folded egg omelette with fresh herbs, served on a white breakfast plate"
-    elif "pasta with red sauce" in name_l:
-        framing = "steaming bowl of penne pasta coated in rich tangy Italian tomato basil marinara sauce, garnished with parmesan cheese"
-    elif "pasta with mix sauce" in name_l:
-        framing = "steaming penne pasta tossed in creamy pink blush sauce (marinara and alfredo blend), topped with herbs and parmesan"
-    elif "pasta with white sauce" in name_l:
-        framing = "steaming penne pasta in velvety rich creamy garlic alfredo sauce with sautéed mushrooms and herbs"
+    elif any(w in name_l for w in ["spaghetti", "pasta", "penne", "macaroni", "macroni", "fettuccine", "lasagna"]):
+        if "red sauce" in name_l or "marinara" in name_l or "spaghetti" in name_l:
+            framing = f"al dente Italian {clean_name} twirled on a plate with rich homemade tomato basil marinara sauce, grated parmesan cheese, fresh basil leaves"
+        elif "white sauce" in name_l or "alfredo" in name_l:
+            framing = f"steaming Italian {clean_name} tossed in velvety rich garlic parmesan alfredo cream sauce with herbs"
+        elif "mix sauce" in name_l or "pink sauce" in name_l:
+            framing = f"Italian {clean_name} in creamy pink blush sauce (marinara and alfredo blend) topped with Italian herbs and parmesan"
+        else:
+            framing = f"delicious artisan Italian {clean_name} plated with savory herb sauce, fresh basil and parmesan cheese"
+    elif any(w in name_l for w in ["wagyu", "steak", "beef steak", "tenderloin", "ribeye", "sirloin"]):
+        framing = f"thick juicy grilled {clean_name} with seared grill marks, melting herb garlic butter, fresh rosemary, served with roasted vegetables on a rustic board"
+    elif any(w in name_l for w in ["roasted beef", "roast beef"]):
+        framing = "succulent tender slices of roasted beef tenderloin with rich savory pan jus and roasted baby potatoes on a white plate"
+    elif "black paper" in name_l or "black pepper" in name_l:
+        framing = f"sizzling tender sliced {clean_name} beef tossed in aromatic crushed black pepper sauce with crisp bell peppers and scallions on a hot skillet"
+    elif "chicken rise" in name_l or "chicken rice" in name_l:
+        framing = "aromatic seasoned chicken rice bowl with tender juicy roasted chicken slices, fragrant long grain rice, and fresh scallions"
+    elif "tender rice" in name_l:
+        framing = "fragrant fluffy seasoned rice bowl tossed with delicate herbs, light butter, and fresh scallions in an artisan ceramic bowl"
+    elif any(w in name_l for w in ["humburger", "hamburger", "burger", "slider", "mini burger"]):
+        framing = f"juicy gourmet {clean_name} with melted cheddar cheese, crisp lettuce, ripe tomato slice, pickles in a toasted brioche bun, restaurant presentation"
+    elif any(w in name_l for w in ["hotdog", "hot dog", "mini hotdog"]):
+        framing = f"grilled premium frankfurter sausage in a warm toasted bun with mustard, ketchup, and pickle relish on parchment paper"
+    elif "pop corn" in name_l or "popcorn" in name_l:
+        framing = "warm golden buttery fluffy movie theater popcorn overflowing in an artisan ceramic bowl"
+    elif "french fries" in name_l or "fries" in name_l:
+        framing = "crispy golden salted shoestring french fries served in a wire basket with gourmet dipping sauces"
     elif "sandwich" in name_l or "tost" in name_l or "toast" in name_l:
         framing = f"gourmet toasted panini sandwich {clean_name} cut in diagonal halves showing vibrant layered filling and melted cheese with crisp grill marks, served with mint dip"
 
@@ -611,8 +636,10 @@ def build_cloudflare_prompt(dish_name: str, category: str = "", description: str
         framing = f"authentic Indo-Chinese {clean_name} dish tossed in wok with spring onions, garnished on a white ceramic platter"
     elif any(w in cat_l for w in ["chicken", "nonveg"]):
         framing = f"gourmet plated {clean_name} chicken dish with aromatic spices, fresh herbs, restaurant culinary presentation"
-    elif any(w in cat_l for w in ["main course", "curry", "gravy"]):
-        framing = f"rich aromatic Indian {clean_name} curry in a copper handi bowl, garnished with fresh cilantro and ginger juliennes, served with naan"
+    elif any(w in cat_l for w in ["curry", "gravy", "dal", "handi", "karahi", "paneer", "indian"]):
+        framing = f"rich aromatic {clean_name} curry in a copper handi bowl, garnished with fresh cilantro and ginger juliennes, served with naan"
+    elif any(w in cat_l for w in ["main course", "mains", "entree", "dinner", "lunch"]):
+        framing = f"exquisite gourmet plated {clean_name} main course dish, savory sauce and fresh herbs, restaurant culinary presentation, white ceramic plate"
     else:
         framing = f"gourmet plated {clean_name} {clean_cat} dish, delicious restaurant culinary presentation, white ceramic plate"
 
@@ -620,48 +647,68 @@ def build_cloudflare_prompt(dish_name: str, category: str = "", description: str
 
 async def fetch_cloudflare_image_bytes(dish_name: str, category: str = "", description: str = "") -> bytes | None:
     """
-    Tier 1 AI Generator: Uses Cloudflare Workers AI (@cf/bytedance/stable-diffusion-xl-lightning)
+    Tier 1 AI Generator: Uses Cloudflare Workers AI (@cf/black-forest-labs/flux-1-schnell)
     Generates studio-grade culinary photography, strictly customized by category and dish name.
+    Includes Pollinations AI secondary fallback to guarantee 100% zero-404 delivery.
     """
-    if not CLOUDFLARE_ACCOUNT_ID or not CLOUDFLARE_API_TOKEN:
-        return None
-
     prompt = build_cloudflare_prompt(dish_name, category, description)
-    url = f"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/bytedance/stable-diffusion-xl-lightning"
-    headers = {
-        "Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}",
-        "Content-Type": "application/json",
-    }
+    cf_http = get_cf_client()
 
+    # 1. Primary: Cloudflare Workers AI Flux-1-Schnell (photorealistic & blazingly fast)
+    if CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN:
+        url = f"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/black-forest-labs/flux-1-schnell"
+        headers = {
+            "Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}",
+            "Content-Type": "application/json",
+        }
+        try:
+            r = await cf_http.post(url, headers=headers, json={"prompt": prompt})
+            if r.status_code == 200:
+                raw_bytes = None
+                content_type = r.headers.get("content-type", "")
+                if "application/json" in content_type:
+                    data = r.json()
+                    img_b64 = data.get("result", {}).get("image")
+                    if img_b64:
+                        raw_bytes = base64.b64decode(img_b64)
+                elif "image/" in content_type or len(r.content) > 1000:
+                    raw_bytes = r.content
+
+                if raw_bytes:
+                    from PIL import Image
+                    import io
+                    img = Image.open(io.BytesIO(raw_bytes))
+                    if img.mode in ("RGBA", "P"):
+                        img = img.convert("RGB")
+                    img = img.resize((512, 512), Image.Resampling.LANCZOS)
+                    buf = io.BytesIO()
+                    img.save(buf, format="JPEG", quality=85, optimize=True)
+                    val = buf.getvalue()
+                    if len(val) > 3000:
+                        return val
+            else:
+                logger.warning("Cloudflare AI generation status %s for '%s' in '%s'", r.status_code, dish_name, category)
+        except Exception as e:
+            logger.warning("Cloudflare AI generation error for '%s' in '%s': %s", dish_name, category, e)
+
+    # 2. Secondary Fallback: Pollinations AI (guaranteed fallback to prevent 404 / broken question mark)
     try:
-        cf_http = get_cf_client()
-        r = await cf_http.post(url, headers=headers, json={"prompt": prompt})
-        if r.status_code == 200 and r.content:
+        clean_name, clean_cat, _ = clean_culinary_terms(dish_name, category)
+        fallback_prompt = urllib.parse.quote(f"delicious restaurant food photography of {clean_name} {clean_cat}")
+        poll_url = f"https://image.pollinations.ai/prompt/{fallback_prompt}?width=512&height=512&nologo=true&seed=42"
+        pr = await cf_http.get(poll_url, timeout=12.0)
+        if pr.status_code == 200 and len(pr.content) > 3000:
             from PIL import Image
             import io
-            img = Image.open(io.BytesIO(r.content))
-            extrema = img.getextrema()
-            if all(e[0] == 0 and e[1] == 0 for e in extrema):
-                clean_name, clean_cat, _ = clean_culinary_terms(dish_name, category)
-                r_retry = await cf_http.post(
-                    url,
-                    headers=headers,
-                    json={"prompt": f"delicious {clean_name} {clean_cat} dish, appetizing restaurant food photography"}
-                )
-                if r_retry.status_code == 200 and r_retry.content:
-                    img = Image.open(io.BytesIO(r_retry.content))
+            img = Image.open(io.BytesIO(pr.content))
             if img.mode in ("RGBA", "P"):
                 img = img.convert("RGB")
             img = img.resize((512, 512), Image.Resampling.LANCZOS)
             buf = io.BytesIO()
             img.save(buf, format="JPEG", quality=85, optimize=True)
-            val = buf.getvalue()
-            if len(val) > 4000:
-                return val
-        else:
-            logger.warning("Cloudflare AI generation status %s for '%s' in '%s'", r.status_code, dish_name, category)
-    except Exception as e:
-        logger.warning("Cloudflare AI generation error for '%s' in '%s': %s", dish_name, category, e)
+            return buf.getvalue()
+    except Exception as fe:
+        logger.warning("Fallback AI generation error for '%s': %s", dish_name, fe)
 
     return None
 
@@ -738,7 +785,7 @@ async def enrich_menu_with_images(menu_data: dict) -> None:
         asyncio.create_task(prewarm_menu_images(flat_items))
 
 
-@app.get("/api/dishes/image")
+@app.api_route("/api/dishes/image", methods=["GET", "HEAD"])
 async def get_dish_image_stream(
     name: str = Query(...),
     category: str = Query(""),

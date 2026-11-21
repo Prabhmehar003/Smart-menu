@@ -11,7 +11,7 @@ import {
   ChevronUp, ChevronDown, Store, Table2, ImagePlus, CheckCircle2,
   DollarSign
 } from 'lucide-react';
-import { api } from '../api';
+import { api, API_ROOT } from '../api';
 
 export default function MenuPreviewEditor({
   initialData,
@@ -523,8 +523,11 @@ function DishCard({
 
   // If item.image_url is explicitly empty string, it means the user removed the image.
   const hasImage = item.image_url !== '' && item.image_url !== null;
-  const imageUrl = hasImage
+  const rawUrl = hasImage
     ? (item.image_url || `/api/dishes/image?name=${encodeURIComponent(item.name || '')}&category=${encodeURIComponent(catName || '')}&v=3`)
+    : null;
+  const imageUrl = rawUrl
+    ? (rawUrl.startsWith('http') || rawUrl.startsWith('blob:') ? rawUrl : `${API_ROOT}${rawUrl}`)
     : null;
 
   const handleFileChange = (e) => {
@@ -539,10 +542,10 @@ function DishCard({
     <div className="group relative rounded-2xl border border-white/10 hover:border-amber-400/50 bg-[#0a0d14]/80 backdrop-blur-xl overflow-hidden transition-all duration-300 flex flex-col justify-between shadow-lg hover:shadow-[0_8px_25px_rgba(0,0,0,0.6)]">
       {/* Dish Image Container or Empty Photo Placeholder */}
       <div className="relative aspect-[4/3] w-full bg-black/40 overflow-hidden flex flex-col items-center justify-center">
-        {imageUrl ? (
+        {imageUrl && !imgError ? (
           <>
             <img
-              src={imgError ? `/api/dishes/image?name=${encodeURIComponent(item.name || '')}&category=${encodeURIComponent(catName || '')}&v=3` : imageUrl}
+              src={imageUrl}
               alt={item.name}
               loading="lazy"
               decoding="async"
